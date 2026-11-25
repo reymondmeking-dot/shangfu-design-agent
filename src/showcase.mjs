@@ -1,3 +1,4 @@
+import { orderDisposition } from './download-names.mjs';
 import { createSolution, extractRequirements, makeVisualBrief, matchResources } from './engine.mjs';
 import { describeDrawing, makeDrawing } from './exports.mjs';
 import { makeProjectWorkbook } from './reports.mjs';
@@ -7,7 +8,7 @@ const repo = 'https://github.com/reymondmeking-dot/shangfu-design-agent';
 const releaseVideo = repo + '/releases/latest/download/shangfu-design-agent-demo.mp4';
 const videoPath = base + '/media/shangfu-design-agent-demo.mp4';
 // Refresh these values together with the public MP4 so viewers get its new cache key.
-const videoRelease = { bytes:16836934, revision:'342443558dbc' };
+const videoRelease = { bytes:16622531, revision:'dc4fc796bc4b' };
 const videoUrl = videoPath + '?v=' + videoRelease.revision;
 const csp = "default-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'none'; style-src 'self'; img-src 'self'; media-src 'self' https://github.com https://release-assets.githubusercontent.com https://objects.githubusercontent.com";
 const steps = ['需求录入','需求解构','人工确认','资源匹配','方案初稿','图纸与提示词','版师复核','归档导出','复盘复用'];
@@ -193,8 +194,8 @@ function exportExample(key,version,format,followup) {
   const {project,requirements,solution}=currentData;
   const isPrivate=key==='atelier';
   const drawing=makeDrawing(solution);
-  if(format==='svg')return new Response(drawing.svg,{headers:{'Content-Type':'image/svg+xml; charset=utf-8'}});
-  if(format==='dxf')return new Response(drawing.dxf,{headers:{'Content-Type':'application/dxf','Content-Disposition':`attachment; filename="${project.id}-V${version}.dxf"`}});
+  if(format==='svg')return new Response(drawing.svg,{headers:{'Content-Type':'image/svg+xml; charset=utf-8','Content-Disposition':orderDisposition(project,version,'svg','inline')}});
+  if(format==='dxf')return new Response(drawing.dxf,{headers:{'Content-Type':'application/dxf','Content-Disposition':orderDisposition(project,version,'dxf')}});
   const stamp=(rev,minute)=>'2026-01-'+(rev===1?'12':'13')+'T09:'+String(minute).padStart(2,'0')+':00Z';
   function record(data,d) {
     const {project:p,requirements:r,solution:s,match:m,trace}=data;
@@ -231,14 +232,14 @@ function exportExample(key,version,format,followup) {
       version,trace:current.trace,requirements:requirements.fields,aestheticTags:requirements.aestheticTags,
       assets:solution.selected,solutionId:solution.id,drawing:describeDrawing(solution),prompts:current.brief.prompts,
       reusedChecks:solution.reusedChecks,history:history.map(r=>({version:r.version,sourceText:r.text,trace:r.trace,solutionId:r.solution.id})),events};
-    return new Response(JSON.stringify(example,null,2),{headers:{'Content-Type':'application/json; charset=utf-8','Content-Disposition':`attachment; filename="${project.id}-V${version}.json"`}});
+    return new Response(JSON.stringify(example,null,2),{headers:{'Content-Type':'application/json; charset=utf-8','Content-Disposition':orderDisposition(project,version,'json')}});
   }
   const revisions=[...history,current];
   const confirmed=revisions.filter((rev,i)=>revisions.findIndex(item=>item.trace.requirementId===rev.trace.requirementId)===i);
   const intakes=confirmed.map(rev=>({id:rev.trace.intakeId,projectId:project.id,rawText:rev.text,createdAt:stamp(rev.version,5),actor:'模拟顾问'}));
   const confirmations=confirmed.map(rev=>({id:rev.trace.requirementId,projectId:project.id,intakeId:rev.trace.intakeId,fields:rev.requirements.fields,changedAt:stamp(rev.version,10),actor:'模拟顾问'}));
   const bytes=makeProjectWorkbook({...current,id:project.id,title:project.title,currentRevision:current,history,intakes,confirmations,events,archivedVersions:version===project.finalVersion?[version]:[]});
-  return new Response(bytes,{headers:{'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','Content-Disposition':`attachment; filename="${project.id}-V${version}.xlsx"`}});
+  return new Response(bytes,{headers:{'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','Content-Disposition':orderDisposition(project,version,'xlsx')}});
 }
 
 function rangedFallback(upstream,request) {

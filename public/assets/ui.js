@@ -38,7 +38,7 @@ const previews=new Map(), photoSets=new Map(), deliveryMessages=new Map();
 const PHOTO_VIEWS=[
  {key:'garment',title:'成衣正背面',width:1500,height:1000},
  {key:'detail',title:'工艺与材质特写',width:1200,height:1200},
- {key:'on-body',title:'上身与场景',width:1200,height:1500}
+ {key:'on-body',title:'上身与场景氛围',width:1200,height:1500}
 ];
 let photoDatabase;
 function current(){return projects.find(p=>p.id===activeId)||projects[0];}
@@ -472,7 +472,7 @@ async function downloadPhoto(p,rev,image){
   const hex=Array.from(digest,value=>value.toString(16).padStart(2,'0')).join('');
   if(hex!==image.sha256)throw new Error('图片与本版核对记录不一致。请重新读取效果图。');
  }
- saveFile(blob,safeName(p.title)+'-V'+rev.version+'-'+image.key+'.jpg');
+ saveFile(blob,orderFileName(p,rev.version,PHOTO_VIEWS.find(view=>view.key===image.key).title+'效果图','jpg'));
  event(p,'download-photo','下载 V'+rev.version+' '+image.title+' 写实效果图',ACTOR.advisor,rev.version);persist();
 }
 function showPhotoDialog(title,content){
@@ -596,7 +596,7 @@ function catalogReferences(keywords){
  return `<div class="stack">${sources.length?`<details class="panel fold"><summary>模拟案例（${sources.length}）</summary>${sources.map(row=>`<article class="asset-row"><strong>${e(row.title)}</strong><small>${e(row.id)}　${e(row.pages)}</small><p>${e(row.adaptation)}</p><p>${e(plain(row.design))}</p></article>`).join('')}</details>`:''}
  ${knowledge.length?`<details class="panel fold"><summary>专业参考资料（${knowledge.length}）</summary>${knowledge.map(row=>`<article class="asset-row"><strong>${e(row.title)}</strong><p>${e(row.guidance)}</p><p>${e(row.scope)}</p>${/^https:\/\//.test(row.sourceUrl)?`<a rel="noreferrer" target="_blank" href="${e(row.sourceUrl)}">${e(row.sourceTitle)}</a>`:''}</article>`).join('')}</details>`:''}</div>`;
 }
-function catalogMarkup(){return `<div class="page-header"><h1>定制资产库</h1><div class="actions">${deliverableLink('下载资产分类清单（CSV）','/api/catalog.csv','模拟资产分类清单.csv')}</div></div>
+function catalogMarkup(){return `<div class="page-header"><h1>定制资产库</h1><div class="actions">${deliverableLink('下载资产分类清单（CSV）','/api/catalog.csv','定制资源分类清单.csv')}</div></div>
  <div class="catalog-tools"><div class="catalog-filters" aria-label="资产类别">${[['all','全部'],...Object.entries(TYPES)].map(([type,label])=>btn(label,'filter-catalog',filterType===type?'button-dark':'button-light',`data-type="${type}" aria-pressed="${filterType===type}"`)).join('')}</div>
  <div class="catalog-fields"><label class="field" for="search-catalog">搜索资源<input id="search-catalog" class="input" data-search="catalog" type="search" value="${e(query)}" placeholder="名称、编号、标签或场景"></label>
  <label class="field" for="catalog-scene">适用场景<select id="catalog-scene"><option value="">全部场景</option>${Object.entries(SCENES).map(([key,label])=>`<option value="${key}"${filterScene===key?' selected':''}>${label}</option>`).join('')}</select></label>
@@ -692,7 +692,21 @@ function saveFile(blob,filename){
  element.href=url;element.download=filename;document.body.append(element);element.click();element.remove();
  setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-const safeName=name=>String(name||'海派定制').replace(/[<>:"/\\|?*\u0000-\u001f]+/g,'-').slice(0,48);
+function filePart(value, fallback, budget) {
+  const clean=String(value || '').normalize('NFC').replace(/[<>:"/\\|?*_\u0000-\u001f\u007f]+/g,'-').trim();
+  let text='', bytes=0;
+  for (const char of clean) {
+    const code=char.codePointAt(0);
+    const width=code<128?1:code<2048?2:code<65536?3:4;
+    if (bytes+width>budget) break;
+    text+=code>=0xd800&&code<=0xdfff?'�':char;
+    bytes+=width;
+  }
+  return text.replace(/[. ]+$/,'') || fallback;
+}
+function orderFileName(project, version, role, extension) {
+  return filePart(project.title,'定制项目',72)+'_'+filePart(project.id,'未编号',84)+'_V'+version+'_'+role+'.'+extension;
+}
 async function createVersion(p,settings,reason,{type='solution',actor=ACTOR.advisor}={}){
  const result=await stageRequest(p,'/solution',remote?{...settings,matchId:p.matchId,reason,actor}:settings);
  if(!result?.solution||!result?.brief||!result?.drawing)throw new Error('方案、图纸或提示词缺了一项，请重新生成。');
@@ -907,7 +921,8 @@ document.addEventListener('click',eventObject=>{
   if(!hasSample(scene,ver))return;
   const label='云汀会馆礼宾夹克 V1';
   const note='深藏蓝礼宾夹克，翻驳领，重点核对袋口加固。';
-  return showPhotoDialog(label,'<p class="help">AI 写实效果图。'+note+'</p><div class="sample-gallery">'+PHOTO_VIEWS.map(spec=>'<figure><img src="'+samplePhotoPath(scene,spec.key,ver)+'" width="'+spec.width+'" height="'+spec.height+'" alt="'+e(label+' '+spec.title)+'"><figcaption><strong>'+e(spec.title)+'</strong><a href="'+samplePhotoPath(scene,spec.key,ver)+'" download="'+e(label+'-'+spec.title)+'.jpg">下载 JPG</a></figcaption></figure>').join('')+'</div>');
+  const sample=cases.find(item=>item.scene===scene);
+  return showPhotoDialog(label,'<p class="help">AI 写实效果图。'+note+'</p><div class="sample-gallery">'+PHOTO_VIEWS.map(spec=>'<figure><img src="'+samplePhotoPath(scene,spec.key,ver)+'" width="'+spec.width+'" height="'+spec.height+'" alt="'+e(label+' '+spec.title)+'"><figcaption><strong>'+e(spec.title)+'</strong><a href="'+samplePhotoPath(scene,spec.key,ver)+'" download="'+e(orderFileName({title:sample?.title||label,id:sample?.id||scene},ver,spec.title+'效果图','jpg'))+'">下载 JPG</a></figcaption></figure>').join('')+'</div>');
  }
  if(action==='step')return setPage(button.dataset.step);
  if(action==='workspace')return setPage(allowed(p,p.status)?p.status:'intake');
@@ -963,7 +978,7 @@ document.addEventListener('click',eventObject=>{
  if(action==='download-preview'&&rev){
   const image=previews.get(rev.solution.id)?.images?.find(item=>item.key===button.dataset.preview);
   if(!image)return;
-  saveFile(new Blob([image.svg],{type:'image/svg+xml'}),safeName(p.title)+'-V'+rev.version+'-'+image.key+'.svg');
+  saveFile(new Blob([image.svg],{type:'image/svg+xml'}),orderFileName(p,rev.version,PHOTO_VIEWS.find(view=>view.key===image.key).title+'示意图','svg'));
   event(p,'download-preview','下载 V'+rev.version+' '+image.title,ACTOR.advisor,rev.version);persist();return;
  }
  if(action==='complete-drawing'&&rev?.version===p.solution?.version&&!stale(p)){
@@ -976,7 +991,7 @@ document.addEventListener('click',eventObject=>{
  const drawingFormat=action==='download-dxf'?'dxf':action==='download-svg'?'svg':null;
  if(drawingFormat&&rev?.drawing?.[drawingFormat]){
   const mime=drawingFormat==='dxf'?'application/dxf':'image/svg+xml';
-  saveFile(new Blob([rev.drawing[drawingFormat]],{type:mime}),safeName(p.title)+'-V'+rev.version+'.'+drawingFormat);
+  saveFile(new Blob([rev.drawing[drawingFormat]],{type:mime}),orderFileName(p,rev.version,'款式图',drawingFormat));
   event(p,action,'下载 V'+rev.version+' '+drawingFormat.toUpperCase()+' 图纸',ACTOR.advisor,rev.version);persist();return;
  }
  if(action==='copy-prompt'){
@@ -999,7 +1014,7 @@ document.addEventListener('click',eventObject=>{
   if(!p.solution||stale(p))return notify('请按当前需求重新生成方案。',true);
   const delivery=action==='export-delivery',bundle=action!=='export-xlsx';
   if(delivery&&!revisionReview(p).archive)return notify('请完成本版图纸复核并确认归档。',true);
-  const name=delivery?'核对版交付包':bundle?'内部工作包':'台账',suffix=bundle?'.zip':'.xlsx';
+  const name=delivery?'核对版交付包':bundle?'内部工作包':'台账',extension=bundle?'zip':'xlsx';
   const entry=makeEvent(p,action,'导出'+name);
   return run(async()=>{
    let blob;
@@ -1013,7 +1028,7 @@ document.addEventListener('click',eventObject=>{
     }
     throw error;
    }
-   saveFile(blob,safeName(p.title)+'-V'+p.solution.version+'-'+name+suffix);
+   saveFile(blob,orderFileName(p,p.solution.version,bundle?name:'业务台账',extension));
    if(delivery)deliveryMessages.delete(p.solution.id);
    p.events.push(entry);persist();render();notify(name+'已下载。');
   },'正在整理'+name+'…');

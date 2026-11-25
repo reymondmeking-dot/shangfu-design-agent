@@ -154,28 +154,33 @@ def rank_assets(connection,requirements,scene):
         aid_row=aid['evidence'][item['id']]
         kind=item['type']
         check=None
-        if not fits: check=('rejected','与当前业务场景不符')
+        if not fits:
+            check=('rejected','这项资源用于高级私定，本单为团体职业服。' if scene=='group' else '这项资源用于团体职业服，本单为高级私定。')
         key={'pattern':'collar','fabric':'care'}.get(kind)
         if fits and key:
             field=fields[key]
             actual=item.get(key)
             if key=='collar' and actual=='stand' and fields.get('collarHeightRequest',{}).get('value','').startswith('领高偏低'):
-                check=('needsReview','当前立领基版需先核对实际领高')
+                check=('needsReview','客户希望领口低一些，请先核对这款立领基版的实际领高。')
             elif field['level']=='required':
                 codes,excluded=field.get('codes',[]),field.get('excluded',[])
-                if field.get('unrecognized') or not (codes or excluded) or actual in (None,'unknown'):
-                    check=('needsReview',field['label']+'没有对应的资产记录')
+                if field.get('unrecognized') or not (codes or excluded):
+                    check=('needsReview','请和客户核对「'+field['value']+'」的具体含义，再按'+field['label']+'筛选。')
+                elif actual in (None,'unknown'):
+                    label='护理方式' if key=='care' else field['label']
+                    check=('needsReview','资料卡未注明'+label+'，还不能确认是否符合「'+field['value']+'」。')
                 elif actual in excluded or codes and actual not in codes:
-                    check=('rejected',field['label']+'与硬条件不符：'+field['value'])
+                    recorded=aid['choiceLabels'][key].get(actual,actual)
+                    check=('rejected','本单要求「'+field['value']+'」，资料卡登记为「'+recorded+'」。')
         check=check or aid_row['check']
         if check:
             buckets[check[0]].append({**item,'reason':check[1]})
             continue
         hits=[tag for tag in item['tags'] if norm(tag) in text]
         keys=aid['criteria'][kind]+([key] if key else [])
-        required=[fields[k]['label'] for k in keys if fields.get(k,{}).get('level')=='required']
-        reasons=(['符合已确认的'+'、'.join(required)+'硬要求'] if required else [])
-        reasons.append('匹配：'+'、'.join(hits) if hits else '适用当前业务场景')
+        required=[fields[k]['value'] for k in keys if fields.get(k,{}).get('level')=='required']
+        reasons=(['符合本单要求：'+'、'.join(required)] if required else [])
+        reasons.append('对应标签：'+'、'.join(hits) if hits else ('适合团体职业服' if scene=='group' else '适合高级私定'))
         if aid_row['reference']:reasons.append(aid['sourceId']+' 模拟案例参考：'+aid_row['reference'])
         score=item['rank']+len(hits)*3+5*bool(key and item.get(key) in fields[key].get('codes',[]))+24*bool(aid_row['reference'])+15*aid_row['preferredFabric']
         buckets['eligible'].append({**item,'score':score,'reason':'。'.join(reasons)})
@@ -193,14 +198,18 @@ def rank_assets(connection,requirements,scene):
                             or 'weightClasses'in craft and fabric.get('weightClass') not in craft['weightClasses']):
                         continue
                     chosen.update(pattern=pattern['id'],fabric=fabric['id'],craft=craft['id'])
-                    return {**buckets,'recommended':chosen,'blocked':False,'reason':'已按本单的硬要求核对领型、工艺、活动量和面料厚度。'}
-    return {**buckets,'recommended':chosen,'blocked':True,'reason':reason or '还没有找到能搭配的一组版型、面料和工艺，请核对资产卡。'}
+                    return {**buckets,'recommended':chosen,'blocked':False,'reason':'这组版型、面料与工艺可以搭配，已核对领型、肩袖活动量和面料厚度。'}
+    if not reason:
+        absent=next((label for key,label in [('pattern','版型'),('fabric','面料'),('craft','工艺')] if not types[key]),None)
+        reason=('还没有符合本单要求的'+absent+'。请核对已排除和待核对的资源。' if absent
+                else '候选版型、面料和工艺暂时配不成一套，请核对领型、活动量和面料厚度。')
+    return {**buckets,'recommended':chosen,'blocked':True,'reason':reason}
 
 
 def scope_conflict(requirements,aid):
     fields=aid['fields']
     if any(f['level']=='required' and f['key'] not in aid['knownKeys'] for f in requirements['fields']):
-        return '有一项硬要求无法匹配，请回到设计参数页核对。'
+        return '有一项必选条件尚未纳入模拟资源库，请回到设计参数页核对。'
     if re.search('连衣裙|半身裙|西裤|长裤|衬衫|马甲|短裙|短裤',fields.get('garmentScope',{}).get('value','')):
         return '模拟库只有外套、夹克和西装上衣基版，请确认分单范围。'
     if fields.get('designDetail',{}).get('level')=='required':return '还没有可核对的花型样卡，请先确认客户指定的纹样。'
@@ -208,5 +217,5 @@ def scope_conflict(requirements,aid):
     if fields.get('placketWidthRequest',{}).get('level')=='required':
         width=aid['width']
         if not width or (width.get('min') or 0)>50 or (width.get('max') or float('inf'))<20:
-            return '门襟宽度目标超出 20–50 mm 模拟模板或缺少单位。'
+            return '要求的门襟宽度超出模拟基版的 20–50 mm 范围，请版师核对。' if width else '请先确认门襟宽度的数值、单位或允许范围。'
     return ''

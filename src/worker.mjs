@@ -1,3 +1,4 @@
+import { orderDisposition } from './download-names.mjs';
 import {
   catalog, catalogVersion, demoCases, extractRequirements, matchResources,
   createSolution, makeVisualBrief, normalizeRequirements, normalizeScene, suggestCaseNote
@@ -16,7 +17,7 @@ import { accessGuard } from './auth.mjs';
 
 import { showcase } from './showcase.mjs';
 const root = '/design-agent';
-const revision = '20261125.12';
+const revision = '20261125.12.3';
 const responseHeaders = {
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
@@ -233,7 +234,7 @@ async function api(request, env, path) {
       return new Response(makeProjectWorkbook(body,photos), { headers: {
         ...responseHeaders,
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': "attachment; filename=design-agent-ledger.xlsx; filename*=UTF-8''%E5%AE%9A%E5%88%B6%E4%B8%9A%E5%8A%A1%E5%8F%B0%E8%B4%A6.xlsx",
+        'Content-Disposition': orderDisposition(body,body.solution.version,'xlsx'),
         'Cache-Control': 'no-store'
       } });
     }
@@ -273,7 +274,7 @@ async function api(request, env, path) {
       if (env.SHANGFU_ORIGIN) return pythonExport(env,delivery?'delivery':'bundle',body,photographs);
       return new Response(makeArtifactPack(body,photographs,delivery), { headers: {
         ...responseHeaders, 'Content-Type': 'application/zip',
-        'Content-Disposition': delivery ? 'attachment; filename=design-agent-reviewed-case.zip' : "attachment; filename=design-agent-case.zip; filename*=UTF-8''%E5%AE%9A%E5%88%B6%E5%8F%82%E8%80%83%E6%96%B9%E6%A1%88%E8%B5%84%E6%96%99%E5%8C%85.zip",
+        'Content-Disposition': orderDisposition(body,body.solution.version,delivery?'delivery':'bundle'),
         'Cache-Control': 'no-store'
       } });
     }
@@ -300,10 +301,10 @@ async function archivedProject(env,submitted) {
 }
 
 async function pythonExport(env,kind,project,photos) {
-  const model = preparePythonExport(project,photos,kind === 'delivery');
+  const model = {...preparePythonExport(project,photos,kind === 'delivery'),projectTitle:project.title};
   const res = await pythonRequest(env,'/render/'+kind,{model,projectId:project.id,solutionId:project.solution.id,version:project.solution.version});
   if (res.ok) {
-    res.headers.set('Content-Disposition','attachment; filename="design-agent-'+kind+(kind==='xlsx'?'.xlsx':'.zip')+'"');
+    res.headers.set('Content-Disposition',orderDisposition(project,project.solution.version,kind));
     res.headers.set('X-Design-Agent-Release',revision);
   }
   return res;

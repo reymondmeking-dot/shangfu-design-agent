@@ -2,6 +2,8 @@ import hmac
 import json
 import os
 import re
+from unicodedata import normalize
+from urllib.parse import quote
 from urllib.request import Request as UrlRequest, urlopen
 from contextlib import asynccontextmanager
 from typing import Literal
@@ -276,8 +278,27 @@ def get_project(pid:str):
             'archivedVersions':[r['version'] for r in archives],'events':[json.loads(r[0]) for r in con.execute('SELECT data FROM event WHERE project=? ORDER BY seq',(pid,))]}
 
 
+
+def download_disposition(title, project_id, version, kind):
+    def part(value, fallback, budget):
+        text = re.sub(r'[<>:"/\\|?*_\x00-\x1f\x7f]+', '-', normalize('NFC', str(value or ''))).strip()
+        text = re.sub(r'[\ud800-\udfff]', '�', text)
+        return text.encode('utf-8')[:budget].decode('utf-8', errors='ignore').rstrip('. ') or fallback
+
+    role, extension = {'xlsx': ('业务台账', 'xlsx'), 'bundle': ('内部工作包', 'zip'), 'delivery': ('核对版交付包', 'zip')}[kind]
+    base = part(project_id, '未编号', 84)
+    name = f"{part(title, '定制项目', 72)}_{base}_V{version}_{role}.{extension}"
+    ascii_id = re.sub(r'[^a-zA-Z0-9.-]', '-', part(project_id, 'project', 84))
+    suffix = '-' + kind if extension == 'zip' else ''
+    return f'''attachment; filename="{ascii_id}-V{version}{suffix}.{extension}"; filename*=UTF-8''{quote(name, safe="")}'''
+
 @app.post('/v1/render/{kind}')
 def render(kind:Literal['xlsx','bundle','delivery'],req:RenderJob):
+    if kind in ('bundle','delivery'):
+        manifest=req.model.get('manifest',{})
+        ensure(all(value is None or manifest.get(key)==value for key,value in
+                   (('projectId',req.projectId),('solutionId',req.solutionId),('version',req.version))),
+               'EXPORT_REVISION_MISMATCH','收件清单与所选项目、方案或版次不同。',422)
     if kind=='delivery':
         ensure(req.projectId and req.solutionId and req.version,'DELIVERY_ARCHIVE_REQUIRED','请先将项目归档，再导出核对版交付包。',422)
         with db.connection() as con:
@@ -299,6 +320,16 @@ def render(kind:Literal['xlsx','bundle','delivery'],req:RenderJob):
                                       (p['id'],p['solution'],photo.get('key'))).fetchone()
                     ensure(saved and saved[0]==photo.get('sha256') and saved[1],'DELIVERY_PHOTOS_REQUIRED','归档中的生成图须对应版本库中已逐张核对的原图。',422)
     from .render import render_export
-    blob=render_export(req.model,kind)
+    if kind=='xlsx':
+        blob=render_export(req.model,kind)
+    else:
+        from xml.etree.ElementTree import ParseError
+        try:
+            blob=render_export(req.model,kind)
+        except (ValueError, KeyError, TypeError, ParseError) as exc:
+            raise BusinessError('EXPORT_PACKAGE_INVALID','资料包内容不完整，或与同版收件清单不符。',422) from exc
     media='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' if kind=='xlsx' else 'application/zip'
-    return Response(content=blob,media_type=media,headers={'Cache-Control':'no-store'})
+    solution=req.model.get('solution') or {}
+    manifest=req.model.get('manifest') or {}
+    name=download_disposition(req.model.get('projectTitle') or solution.get('title'), req.projectId or manifest.get('projectId'), req.version or solution.get('version') or manifest.get('version') or 1, kind)
+    return Response(content=blob,media_type=media,headers={'Cache-Control':'no-store','Content-Disposition':name})

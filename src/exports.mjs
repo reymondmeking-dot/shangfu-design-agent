@@ -1,4 +1,5 @@
 import { strToU8, zipSync } from 'fflate';
+import { normalizeRequirements } from './engine.mjs';
 import { patternReviewState } from './pattern-review.mjs';
 
 const SCOPE = '模拟款式技术图，供沟通与版师复核';
@@ -660,9 +661,10 @@ function compact(value) {
 }
 
 const asList = value => Array.isArray(value) ? value : [];
-const labelScene = scene => scene === 'group' ? '团体职业服' : scene === 'private' ? '海派高级定制' : scene ?? '';
+export const ledgerSceneLabels = { private: '高端海派私定', group: '团体职业服' };
+export const ledgerAssetLabels = { pattern: '版型', fabric: '面料', craft: '工艺', case: '历史案例' };
 const LEVELS = { required: '硬要求', preferred: '偏好', unspecified: '未指定' };
-const SOURCES = { customer: '客户原话', agent: 'Agent 建议', pending: '待顾问确认', advisor: '顾问确认' };
+const SOURCES = { customer: '客户原话', agent: '系统建议', pending: '待核实', advisor: '顾问确认' };
 const EVENT_LABELS = {
   intake: '录入需求', extract: '需求解构', confirm: '顾问确认设计参数', match: '参数确认与匹配', solution: '生成参考方案', revision: '修订参考方案',
   visual: '生成图纸与提示词', archive: '人工归档', reuse: '复盘复用', 'export-xlsx': '导出台账', 'export-bundle': '导出案例包',
@@ -674,17 +676,24 @@ const EVENT_LABELS = {
 };
 const ROLE_UNKNOWN = '未记录';
 
+export function ledgerRequirement(field, rawText) {
+  const quotes = String(field.evidence ?? '').split(/\s*[｜¦]\s*/).map(part => part.trim())
+    .filter(part => part && typeof rawText === 'string' && rawText.includes(part));
+  return [field.label ?? field.key, compact(field.value), LEVELS[field.level] ?? field.level ?? '未指定',
+    SOURCES[field.source] ?? field.source ?? '待核实', quotes.join(' ｜ ')];
+}
+
 function fieldRows(req, revision, rawText) {
   const fields = Array.isArray(req) ? req : asList(req?.fields);
-  const rows = fields.map(field => [
-    revision, field.label ?? field.key, compact(field.value), LEVELS[field.level] ?? field.level,
-    SOURCES[field.source] ?? field.source, compact(field.evidence)
-  ]);
+  const normalized = normalizeRequirements(fields);
+  const known = new Set(normalized.map(field => field.key));
+  const rows = [...normalized, ...fields.filter(field => field && !known.has(field.key))]
+    .map(field => [revision, ...ledgerRequirement(field, rawText)]);
   for (const tag of asList(req?.aestheticTags ?? req?.tags)) {
     const label = compact(tag);
     const exact = typeof rawText === 'string' && asList(req?.aestheticEvidence).find(item =>
       item?.tag === label && typeof item.quote === 'string' && item.quote.trim() && rawText.includes(item.quote));
-    rows.push([revision, '审美标签', label, '', exact ? '客户原话' : '待顾问确认', exact?.quote]);
+    rows.push([revision, '审美标签', label, '', exact ? SOURCES.customer : SOURCES.pending, exact?.quote]);
   }
   for (const question of asList(req?.questions)) rows.push([revision, '待确认', compact(question)]);
   return rows;
@@ -698,11 +707,11 @@ function solutionRows(solution, match, revision, sourceContext, referenceChecks)
   ];
   if (Array.isArray(solution.assets)) {
     for (const item of solution.assets) {
-      rows.push([revision, item.type ?? '资产', item.id, item.name, compact(item.description ?? item.reason ?? item.limits)]);
+      rows.push([revision, ledgerAssetLabels[item.type] ?? item.type ?? '资产', item.id, item.name, compact(item.description ?? item.reason ?? item.limits)]);
     }
   } else if (solution.assets) {
     for (const [type, item] of Object.entries(solution.assets)) {
-      rows.push([revision, type, item?.id, item?.name ?? compact(item), compact(item?.description ?? item?.limits)]);
+      rows.push([revision, ledgerAssetLabels[type] ?? type, item?.id, item?.name ?? compact(item), compact(item?.description ?? item?.limits)]);
     }
   }
   for (const section of asList(solution.sections)) rows.push([revision, '方案段落', '', section.title, compact(section.body)]);
@@ -778,6 +787,12 @@ function visualRows(bundle, brief, solution, revision, photos) {
       [revision, '校尺（mm）', measurements?.rulerMm],
       [revision, '图纸说明', measurements?.scope ?? SCOPE]
     );
+  }
+  // Earlier snapshots sometimes stored an actual measurement as a numeric string.
+  for (const row of rows) {
+    if (row[1].endsWith('（mm）') && typeof row[2] === 'string' && /^\d+(?:\.\d+)?$/.test(row[2].trim())) {
+      row[2] = Number(row[2]);
+    }
   }
   return rows;
 }
@@ -890,7 +905,7 @@ export function sheetData(project, photos) {
     { name: '项目汇总', widths: [20, 78], rows: [
       ['字段', '内容'],
       ['项目编号', project.id], ['项目名称', project.title ?? project.solution?.title],
-      ['场景', labelScene(project.scene ?? project.solution?.scene)], ['客户原话', project.text ?? project.rawText],
+      ['场景', ledgerSceneLabels[project.scene ?? project.solution?.scene] ?? project.scene ?? project.solution?.scene], ['客户原话', project.text ?? project.rawText],
       ['当前版本', currentVersion], ['版本状态', archive.status],
       ['归档时间（UTC）', archive.archivedAt], ['归档确认角色', archive.archivedBy],
       ['版师复核状态', archive.patternReviewStatus], ['最近复核意见', archive.patternReview?.comment], ['归档关联复核编号', archive.archiveReviewId],
@@ -899,7 +914,7 @@ export function sheetData(project, photos) {
       ['业务边界', '模拟数据，仅供顾问和版师沟通。定稿、报价、签约与生产由业务人员负责。']
     ] },
     { name: '需求与审美', widths: [11, 18, 36, 16, 19, 48], rows: [
-      ['版本', '字段', '内容', '约束', '来源', '原话证据'],
+      ['版本', '设计维度', '参数值', '约束等级', '来源', '原话出处'],
       ...versions.flatMap(item => fieldRows(item.requirements, item.version, item.text ?? item.rawText))
     ] },
     { name: '方案与资源', widths: [11, 23, 26, 42, 60, 46, 30, 48, 68, 18, 24, 20, 68], rows: [
@@ -915,32 +930,70 @@ export function sheetData(project, photos) {
         '原话编号', '需求快照编号', '匹配编号', '方案编号', '图纸编号', '版师复核编号', '版师复核结果'],
       ...operations
     ] }
-  ];
+  ].map(withLedgerDates);
 }
 
 function columnRef(index) {
   return String.fromCharCode(65 + index);
 }
 
-function cellXml(value, rowIndex, colIndex) {
+// Keep the original timestamp in the model for traceability and share Excel's UTC serial with both writers.
+function withLedgerDates(sheet) {
+  const dates = {};
+  for (let r=1; r<sheet.rows.length; r++) {
+    const cells=sheet.rows[r];
+    for (let c=0; c<cells.length; c++) {
+      const heading=sheet.name==='项目汇总' && c===1 ? cells[0] : sheet.rows[0][c];
+      const kind=heading==='查核日期' || heading==='后续版本实施日期' ? 'date' :
+        heading==='时间（UTC）' || heading==='归档时间（UTC）' ? 'timestamp' : null;
+      const value=cells[c];
+      if (!kind || typeof value!=='string') continue;
+      if (kind==='date' ? !/^\d{4}-\d{2}-\d{2}$/.test(value) :
+        !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})$/i.test(value)) continue;
+      const day=Date.parse(value.slice(0,10));
+      if (!Number.isFinite(day) || new Date(day).toISOString().slice(0,10)!==value.slice(0,10)) continue;
+      const utc=Date.parse(value);
+      if (!Number.isFinite(utc) || utc<Date.UTC(1900,0,1)) continue;
+      const serial=utc/86400000+25569-(utc<Date.UTC(1900,2,1)?1:0);
+      dates[columnRef(c)+(r+1)]={kind,serial};
+    }
+  }
+  return {...sheet,dates};
+}
+
+function cellXml(value, rowIndex, colIndex, date) {
   const reference = columnRef(colIndex) + rowIndex;
   const style = rowIndex === 1 ? '1' : '2';
+  if (date) return '<c r="' + reference + '" s="' + (date.kind==='date'?'3':'4') + '"><v>' + date.serial + '</v></c>';
   if (typeof value === 'number' && Number.isFinite(value)) {
     return '<c r="' + reference + '" s="' + style + '"><v>' + value + '</v></c>';
   }
+  if (value===null || value===undefined || value==='') return '';
+  const string=String(compact(value));
+  const content=string.length>32767 ? Array.from(string).slice(0,32767).join('') : string;
+  // SpreadsheetML preserves control characters and literal _xHHHH_ strings with these escapes.
+  const encoded = content.replace(/_x[0-9a-fA-F]{4}_/g, token => '_x005F'+token)
+    .replace(/[\x00-\x08\x0b-\x1f\ufffe\uffff]/g, ch => '_x'+ch.charCodeAt(0).toString(16).toUpperCase().padStart(4,'0')+'_');
   return '<c r="' + reference + '" s="' + style + '" t="inlineStr"><is><t xml:space="preserve">'
-    + xml(String(compact(value)).slice(0, 12000)) + '</t></is></c>';
+    + xml(encoded) + '</t></is></c>';
 }
 
 function sheetXml(sheet) {
   const rows = sheet.rows.map((cells, index) => {
     const rowIndex = index + 1;
-    const longest = cells.reduce((length, item) => Math.max(length, String(compact(item)).length), 0);
-    const height = index === 0 ? 25 : Math.min(128, Math.max(21, Math.ceil(longest / 46) * 17));
+    const lines = cells.reduce((tallest, value, col) => {
+      const width = Math.max(1,sheet.widths[col]-(index===0?4:2));
+      const count = String(compact(value)).split(/\r\n|\r|\n/).reduce((sum,line) =>
+        sum+Math.max(1,Math.ceil([...line].reduce((n,ch)=>n+(ch.codePointAt(0)>127?2:1),0)/width)),0);
+      return Math.max(tallest,count);
+    },1);
+    const height = Math.round(Math.min(409,Math.max(index===0?25:21,lines*16))/0.75)*0.75;
     return '<row r="' + rowIndex + '" ht="' + height + '" customHeight="1">'
-      + cells.map((value, colIndex) => cellXml(value, rowIndex, colIndex)).join('') + '</row>';
+      + cells.map((value, colIndex) => cellXml(value, rowIndex, colIndex,sheet.dates[columnRef(colIndex)+rowIndex])).join('') + '</row>';
   }).join('');
-  const cols = sheet.widths.map((width, index) => '<col min="' + (index + 1) + '" max="' + (index + 1) + '" width="' + width + '" customWidth="1"/>').join('');
+  // XlsxWriter includes Excel's five-pixel column margin in the serialized width.
+  const cols = sheet.widths.map((width, index) => '<col min="' + (index + 1) + '" max="' + (index + 1) + '" width="'
+    + Math.floor((Math.round(width*7)+5)*256/7)/256 + '" customWidth="1"/>').join('');
   return XML_DECL + '<worksheet xmlns="' + SHEET_NS + '"><sheetViews><sheetView workbookViewId="0">'
     + '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>'
     + '</sheetView></sheetViews><cols>' + cols + '</cols><sheetData>' + rows
@@ -967,15 +1020,17 @@ export function makeWorkbook(project, photos = []) {
       + '/worksheet" Target="worksheets/sheet' + (index + 1) + '.xml"/>').join('')
     + '<Relationship Id="rId' + (sheets.length + 1) + '" Type="' + OFFICE_REL + '/styles" Target="styles.xml"/></Relationships>';
   const styles = XML_DECL + '<styleSheet xmlns="' + SHEET_NS + '">'
+    + '<numFmts count="2"><numFmt numFmtId="164" formatCode="yyyy-mm-dd"/><numFmt numFmtId="165" formatCode="yyyy-mm-dd hh:mm:ss.000"/></numFmts>'
     + '<fonts count="2"><font><sz val="11"/><name val="Microsoft YaHei"/></font>'
     + '<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Microsoft YaHei"/></font></fonts>'
     + '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'
     + '<fill><patternFill patternType="solid"><fgColor rgb="FF12333D"/><bgColor indexed="64"/></patternFill></fill></fills>'
     + '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
     + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-    + '<cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+    + '<cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
     + '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>'
-    + '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf></cellXfs>'
+    + '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
+    + [164,165].map(id => '<xf numFmtId="'+id+'" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>').join('') + '</cellXfs>'
     + '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
   const entries = {
     '[Content_Types].xml': strToU8(types),

@@ -547,10 +547,10 @@ function hard(field) {
 
 function evaluateCode(actual, field, names) {
   if (!hard(field)) return null;
-  if (field.unrecognized || !field.codes?.length && !field.excluded?.length) return ["needsReview", field.label + "在资产卡里找不到对应记录"];
-  if (actual == null || actual === "unknown") return ["needsReview", field.label + "缺少验证记录"];
+  if (field.unrecognized || !field.codes?.length && !field.excluded?.length) return ["needsReview", "请和客户核对「" + field.value + "」的具体含义，再按" + field.label + "筛选。"];
+  if (actual == null || actual === "unknown") return ["needsReview", "资料卡未注明" + (field.key === "care" ? "护理方式" : field.label) + "，还不能确认是否符合「" + field.value + "」。"];
   if (field.excluded?.includes(actual) || field.codes?.length && !field.codes.includes(actual)) {
-    return ["rejected", (names[actual] ?? actual) + "不符合硬条件“" + field.value + "”"];
+    return ["rejected", "本单要求「" + field.value + "」，资料卡登记为「" + (names[actual] ?? actual) + "」。"];
   }
   return null;
 }
@@ -615,11 +615,18 @@ function hardOptions(key, value) {
   }));
 }
 
+function recordedFeature(asset, key, value) {
+  if (key === "collar") return collarNames[asset.collar];
+  if (key === "color") return asset.colors?.join("、");
+  if (key === "fabric" && hardOptions(key, value).flat().every(option => fabricMaterials.has(option.term))) return fabricMaterialEvidence[asset.id];
+  if (key === "silhouette") return patternSilhouetteEvidence[asset.id]?.join("、");
+}
+
 function evaluateEvidence(asset, field) {
   if (!hard(field)) return null;
   const groups = hardOptions(field.key, field.value);
   if (!groups.length || groups.some(group => group.some(option => !option.term))) {
-    return ["needsReview", field.label + "在资产卡里找不到对应记录：“" + field.value + "”"];
+    return ["needsReview", "现有资料无法判定「" + field.value + "」。请先确认" + field.label + "的具体要求。"];
   }
   let pending = false;
   for (const group of groups) {
@@ -628,15 +635,20 @@ function evaluateEvidence(asset, field) {
       if (negative && field.key === "fabric" && fabricMaterials.has(term) && status === "no") return "unknown";
       return !negative || status === "unknown" ? status : status === "yes" ? "no" : "yes";
     });
-    if (outcomes.every(status => status === "no")) return ["rejected", "资产卡与" + field.label + "硬条件“" + field.value + "”冲突"];
+    if (outcomes.every(status => status === "no")) {
+      const recorded = recordedFeature(asset, field.key, field.value);
+      return ["rejected", recorded
+        ? "本单要求「" + field.value + "」，资料卡登记为「" + recorded + "」。"
+        : "这项资源不符合本单的" + field.label + "「" + field.value + "」。"];
+    }
     if (!outcomes.includes("yes")) pending = true;
   }
-  return pending ? ["needsReview", "缺少核实" + field.label + "硬条件“" + field.value + "”的资产证据"] : null;
+  return pending ? ["needsReview", "资料卡未写明是否符合「" + field.value + "」，请核对" + field.label + "。"] : null;
 }
 
 function conflictsWithChoice(asset, fields) {
   if (asset.type === "pattern") {
-    if (asset.collar === "stand" && fields.collarHeightRequest?.value.startsWith("领高偏低")) return ["needsReview","领高需偏低，当前立领基版需先核对实际领高"];
+    if (asset.collar === "stand" && fields.collarHeightRequest?.value.startsWith("领高偏低")) return ["needsReview","客户希望领口低一些，请先核对这款立领基版的实际领高。"];
     const collar = evaluateCode(asset.collar, fields.collar, collarNames);
     if (collar) return collar;
   }
@@ -678,7 +690,7 @@ export function matchingEvidence(requirements,scene) {
     evidence[item.id]={check:check||null,reference,preferredFabric};
   }
   const width=parsePlacketRequest(fields.placketWidthRequest);
-  return {fields,evidence,sourceId:source?.id||null,criteria:assetCriteria,knownKeys:Object.keys(definitionByKey),width};
+  return {fields,evidence,sourceId:source?.id||null,criteria:assetCriteria,choiceLabels:{collar:collarNames,care:careNames},knownKeys:Object.keys(definitionByKey),width};
 }
 
 export function matchResources({ requirements, scene } = {}) {
@@ -692,7 +704,7 @@ export function matchResources({ requirements, scene } = {}) {
   const text = Object.values(fields).map(field => normalized(field.value + " " + field.evidence)).join(" ");
   for (const item of catalog) {
     if (!item.scenes.includes(scene)) {
-      rejected.push({ ...item, reason: "与当前业务场景不符" });
+      rejected.push({ ...item, reason: scene === "group" ? "这项资源用于高级私定，本单为团体职业服。" : "这项资源用于团体职业服，本单为高级私定。" });
       continue;
     }
     const conflict = conflictsWithChoice(item, fields);
@@ -702,8 +714,8 @@ export function matchResources({ requirements, scene } = {}) {
     }
     const hits = item.tags.filter(tag => text.includes(normalized(tag)));
     const confirmed = [...assetCriteria[item.type], ...(item.type === "pattern" ? ["collar"] : item.type === "fabric" ? ["care"] : [])]
-      .filter(key => hard(fields[key])).map(key => fields[key].label);
-    const hardReason = confirmed.length ? "符合已确认的" + confirmed.join("、") + "硬要求" : "";
+      .filter(key => hard(fields[key])).map(key => fields[key].value);
+    const hardReason = confirmed.length ? "符合本单要求：" + confirmed.join("、") : "";
     let sourceReference = source?.assetReferences[item.id];
     if (sourceReference && item.type !== "case") {
       const key = item.type === "pattern" ? "collar" : item.type;
@@ -714,7 +726,7 @@ export function matchResources({ requirements, scene } = {}) {
         if (mismatch) sourceReference = null;
       }
     }
-    const reason = [hardReason, hits.length ? "匹配：" + hits.join("、") : "适用当前业务场景",
+    const reason = [hardReason, hits.length ? "对应标签：" + hits.join("、") : (scene === "group" ? "适合团体职业服" : "适合高级私定"),
       sourceReference ? source.id+" 模拟案例参考："+sourceReference : ""].filter(Boolean).join("。");
     const preferenceBonus = item.type === "pattern" && fields.collar.codes?.includes(item.collar) ||
       item.type === "fabric" && fields.care.codes?.includes(item.care) ? 5 : 0;
@@ -728,7 +740,7 @@ export function matchResources({ requirements, scene } = {}) {
   const recommended = { pattern: null, fabric: null, craft: null, case: byType.case[0]?.id ?? null };
   const rawFields = Array.isArray(requirements) ? requirements : requirements?.fields;
   if (Array.isArray(rawFields) && rawFields.some(field => hard(field) && !Object.hasOwn(definitionByKey, field.key))) {
-    return { eligible, rejected, needsReview, recommended, blocked: true, reason: "有一项硬要求无法匹配，请回到设计参数页核对。" };
+    return { eligible, rejected, needsReview, recommended, blocked: true, reason: "有一项必选条件尚未纳入模拟资源库，请回到设计参数页核对。" };
   }
   const contradiction = [fields.collar, fields.care].find(field => field.conflict);
   if (fields.garmentScope?.value && /连衣裙|半身裙|西裤|长裤|衬衫|马甲|短裙|短裤/.test(fields.garmentScope.value)) {
@@ -740,7 +752,7 @@ export function matchResources({ requirements, scene } = {}) {
   }
   const placketLimit = parsePlacketRequest(fields.placketWidthRequest);
   if (hard(fields.placketWidthRequest) && (!placketLimit || placketLimit.min > 50 || placketLimit.max < 20)) {
-    return { eligible, rejected, needsReview, recommended, blocked: true, reason: "门襟宽度硬要求不在 20–50 mm 模拟模板内，或存在不确定值，须先由版师核对。" };
+    return { eligible, rejected, needsReview, recommended, blocked: true, reason: placketLimit ? "要求的门襟宽度超出模拟基版的 20–50 mm 范围，请版师核对。" : "请先确认门襟宽度的数值、单位或允许范围。" };
   }
   const manualFit = Object.values(fields).filter(field => fitKeys.has(field.key) && field.key !== "placketWidthRequest" && field.value && field.level !== "unspecified");
   for (const pattern of byType.pattern) {
@@ -748,12 +760,14 @@ export function matchResources({ requirements, scene } = {}) {
       const craft = byType.craft.find(item => !compatibility(pattern, fabric, item));
       if (!craft) continue;
       Object.assign(recommended, { pattern: pattern.id, fabric: fabric.id, craft: craft.id });
-      const reason = "这组版型、面料和工艺符合已确认的硬要求，可以搭配使用。" + (manualFit.length ? "量体数据和成衣尺寸还要核对。" : "");
+      const reason = "这组版型、面料与工艺可以搭配，已核对领型、肩袖活动量和面料厚度。" + (manualFit.length ? "量体数据和成衣尺寸仍需版师复核。" : "");
       return { eligible, rejected, needsReview, recommended, blocked: false, reason };
     }
   }
-  const absent = !byType.pattern.length ? "版型" : !byType.fabric.length ? "面料" : "工艺";
-  return { eligible, rejected, needsReview, recommended, blocked: true, reason: "还没有满足要求的" + absent + "组合。请先核对资产卡，需要改要求时再与客户确认。" };
+  const absent = !byType.pattern.length ? "版型" : !byType.fabric.length ? "面料" : !byType.craft.length ? "工艺" : "";
+  const reason = absent ? "还没有符合本单要求的" + absent + "。请核对已排除和待核对的资源。"
+    : "候选版型、面料和工艺暂时配不成一套，请核对领型、活动量和面料厚度。";
+  return { eligible, rejected, needsReview, recommended, blocked: true, reason };
 }
 
 function domainError(code, message) {
@@ -773,8 +787,13 @@ function preferenceHandoffs(fields, { pattern, fabric, craft }) {
     const confirmed = { ...field, level: "required" };
     const result = key === "collar" ? evaluateCode(asset.collar, confirmed, collarNames) : evaluateEvidence(asset, confirmed);
     if (!result) continue;
-    checks.push("客户的" + field.label + "偏好「" + field.value + "」需与所选 " + asset.id + "「" + asset.name + "」复核。"
-      + (result[0] === "rejected" ? "模拟资料当前显示有差异。" : "模拟资料暂缺明确证据。"));
+    const recorded = recordedFeature(asset, key, field.value);
+    const resource = asset.id + "「" + asset.name + "」";
+    const checkWith = {collar: "版型图", silhouette: "试穿样衣", fabric: "样布", color: "色卡", craft: "工艺样"}[key];
+    const note = result[0] === "rejected"
+      ? (recorded ? "登记为「" + recorded + "」" : "与这项偏好不符") + "，请确认是否改选。"
+      : "的资料卡未写明这一点，请对照" + checkWith + "核实。";
+    checks.push("本单偏好「" + field.value + "」。" + resource + note);
   }
   return checks;
 }
@@ -809,14 +828,26 @@ export function createSolution({ requirements, scene, selected, version = 1, pla
     : visualColor.value;
   const use = scene === "group" ? "团队接待、迎宾及岗位活动" : "正式私定场合";
   const planTitle = cleanText(title).slice(0, 120) || (scene === "group" ? "礼宾职业服方案" : "海派定制外套方案");
-  const contextualFields = (scene === "group" ? ["headcount", "wearers", "activity", "replenishment", "bodyDescription"] : ["activity","bodyDescription"])
-    .map(key => fields[key]).filter(field => field?.value && field.level !== "unspecified");
+  const contextualValue = key => fields[key]?.level !== "unspecified" ? fields[key]?.value : "";
+  const count = scene === "group" && contextualValue("headcount");
+  const wearers = scene === "group" && contextualValue("wearers");
+  const activity = contextualValue("activity");
+  const restock = scene === "group" && contextualValue("replenishment");
+  const body = contextualValue("bodyDescription");
+  const trialChecks = { 抬臂舒展: "抬手时肩袖是否受限", 搬运行李: "搬运行李是否方便", 久站活动: "久站是否舒适", 坐姿舒适: "坐下时衣身是否绷紧", 腰腹宽松: "腰腹松量是否合适" };
+  const wearNotes = [
+    [count && "本单" + count.replace(/(?:名|位)$/, "人"), wearers && "供" + (/^(礼宾|前台)$/.test(wearers) ? wearers + "人员" : wearers) + "穿着"].filter(Boolean).join("，"),
+    activity && (fields.activity.source === "agent" && activity.startsWith("试穿检查")
+      ? "建议试穿时检查" + activity.slice(4) + "是否自如"
+      : "试穿重点：" + activity.split("、").map(item => trialChecks[item] || item).join("、")),
+    restock, body && "体型记录：" + body,
+  ].filter(Boolean);
   const fitRequests = Object.values(fields).filter(field => fitKeys.has(field.key) && field.value && field.level !== "unspecified");
   const highlights = [pattern, fabric, craft].map(item => item.id + "「" + item.name + "」" + item.description.replace(/。$/, ""));
   const sections = [
     { title: "风格和场景", body: [fields.style.value, fields.scene.value || use].filter(Boolean).join("。") + "。" },
-    ...(contextualFields.length ? [{ title: scene === "group" ? "岗位与交付需求" : "试穿与活动需求",
-      body: contextualFields.map(field => field.label + "：" + field.value).join("。") + "。" }] : []),
+    ...(wearNotes.length ? [{ title: scene === "group" ? "岗位与交付需求" : "试穿与活动需求",
+      body: wearNotes.join("。") + "。" }] : []),
     { title: "版型选择", body: "选用" + pattern.name + "。" + pattern.description },
     { title: "面料推荐", body: "推荐" + fabric.name + "。" + fabric.description },
     { title: "工艺组合", body: "采用" + craft.name + "。" + craft.description },
@@ -847,7 +878,7 @@ export function createSolution({ requirements, scene, selected, version = 1, pla
       }
     }
   }
-  if (fields.designDetail?.value) preferences.push("把客户提出的纹样或地域风格「"+fields.designDetail.value+"」与样布、设计稿对照，再定具体图案。");
+  if (fields.designDetail?.value) preferences.push("请顾问对照样布和设计稿，与客户确认「"+fields.designDetail.value+"」的具体纹样。");
   if (!visualColor.catalogEvidence) preferences.push("对照实物色卡和染色批次确认主色，视觉色值用于方案沟通。");
   return {
     id: "SOL-" + globalThis.crypto.randomUUID(),

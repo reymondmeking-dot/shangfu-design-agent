@@ -1,13 +1,12 @@
 import { strToU8, zipSync } from "fflate";
 import { catalog, catalogVersion, extractRequirements, makeVisualBrief, matchResources, normalizeRequirements, normalizeScene } from "./engine.mjs";
-import { archiveMetadata, describeDrawing, exportDrawingModel, makeDrawing, makeWorkbook, photoReviewLabels, sheetData } from "./exports.mjs";
+import { archiveMetadata, describeDrawing, exportDrawingModel, makeDrawing, makeWorkbook, photoReviewLabels, sheetData, ledgerRequirement, ledgerAssetLabels, ledgerSceneLabels } from "./exports.mjs";
 import { makeVisualPreviews } from "./visual-preview.mjs";
 import { referenceChecksFor } from "./knowledge.mjs";
 import { sourceCases, sourceContextFor } from "./source-cases.mjs";
 
 const typeLabels = { pattern: "版型", fabric: "面料", craft: "工艺", case: "历史案例" };
 const sceneLabels = { private: "海派高端私定", group: "团体职业服" };
-const levelLabels = { required: "硬要求", preferred: "偏好", unspecified: "未指定" };
 const sourceLabels = { customer: "客户原话", agent: "Agent 建议", pending: "待确认", advisor: "顾问确认" };
 const scope = "本项目使用静态模拟数据。输出供需求确认、概念沟通与业务归档。定稿、报价、商务洽谈、签约及生产下单由业务人员负责。";
 const visualScope = "视觉预览按同版方案参数绘制。色样、面料纹理和上身场景供沟通，量体、样布及试穿由业务人员核对。";
@@ -57,9 +56,9 @@ function csv(rows) {
 }
 
 export function makeCatalogCsv() {
-  const header = ["资产编号", "资源类别", "资源名称", "适配场景", "标签", "风格标签", "适配说明", "使用规范与限制", "数据来源", "资产库版本", "模拟项目参照与对应关系"];
+  const header = ["资产编号", "资源类别", "资源名称", "适配场景", "标签", "风格标签", "适配说明", "使用规范与限制", "数据来源", "资产库版本", "参照案例与对应关系"];
   const records = catalog.map(item => [
-    item.id, typeLabels[item.type], item.name, item.scenes.map(scene => sceneLabels[scene]),
+    item.id, ledgerAssetLabels[item.type], item.name, item.scenes.map(scene => ledgerSceneLabels[scene]),
     item.tags, item.tags.filter(tag => catalogStyles.has(tag)), item.description, item.limits, "集团业务场景模拟数据", catalogVersion,
     sourceCases.filter(source => source.assetReferences[item.id]).map(source =>
       `${source.id} ${source.title}（${source.pages}），${source.assetReferences[item.id]}`).join("\n"),
@@ -77,6 +76,13 @@ function snapshotOf(project) {
     scene: base.solution.scene ?? current.scene ?? base.scene,
     requirements: current.requirements ?? base.requirements,
   };
+}
+
+function snapshotWithMatch(project) {
+  const base = snapshotOf(project);
+  const current = base.currentRevision;
+  const stored = current?.version === base.solution.version ? current.match : null;
+  return {...base, match: stored ?? base.match ?? matchResources({requirements:base.requirements,scene:base.scene ?? base.solution.scene})};
 }
 
 function generatedRecord(record, drawing = describeDrawing(record.solution)) {
@@ -100,8 +106,7 @@ function workbookRecord(snapshot) {
 }
 
 export function makeProjectWorkbook(project, photos = []) {
-  const snapshot = generatedRecord(snapshotOf(project));
-  snapshot.match = matchResources({ requirements: snapshot.requirements, scene: snapshot.scene ?? snapshot.solution.scene });
+  const snapshot = generatedRecord(snapshotWithMatch(project));
   return makeWorkbook(workbookRecord(snapshot), photos);
 }
 
@@ -117,11 +122,10 @@ function requirementsCsv(snapshot, fields) {
   return csv([
     ["项目编号", "方案版本", "字段编号", "设计维度", "参数值", "约束等级", "来源", "原话出处", "核验状态", "版本状态", "原话编号", "顾问确认快照编号"],
     ...fields.map(field => {
-      const excerpts = evidenceParts(field.evidence, snapshot.text ?? snapshot.rawText);
+      const values = ledgerRequirement(field,snapshot.text ?? snapshot.rawText);
       return [
-        snapshot.id, snapshot.solution?.version, field.key, field.label, field.value,
-        levelLabels[field.level] ?? "待确认", sourceLabels[field.source] ?? "待确认", excerpts.join(" ｜ "),
-        excerpts.length ? "可回查" : field.source === "customer" ? "原话待核" : "按字段来源处理", status,
+        snapshot.id, snapshot.solution?.version, field.key, ...values,
+        values[4] ? "可回查" : field.source === "customer" ? "原话待核" : "按字段来源处理", status,
         trace?.intakeId, trace?.requirementId,
       ];
     }),
@@ -381,7 +385,11 @@ function caseManifest(snapshot, previews, images, photos, files) {
     referenceChecks: snapshot.referenceChecks,
     catalogVersion: solution.cad?.templateVersion ?? catalogVersion,
     assets: solutionAssets(solution).map(({ type, id, name }) => ({ type, id, name })),
-    deliverables: [...Object.keys(files), manifestFile],
+    deliverables: [
+      ...Object.keys(files).filter(name => !name.includes('/')).sort(), manifestFile,
+      ...images.map(image => image.filename),
+      ...photos.map(photo => photo.file).sort(),
+    ],
     cad: {
       id: drawing.id, unit: measured.unit, measurements: measured, checks, geometryDatums,
       auditScope: "同版模拟基版毫米数与生成几何对照，成衣合体性由业务人员验证。",
@@ -405,11 +413,9 @@ function caseManifest(snapshot, previews, images, photos, files) {
 }
 
 export function preparePythonExport(project, photos = [], delivery = false) {
-  const base = snapshotOf(project);
+  const base = snapshotWithMatch(project);
   const drawing = describeDrawing(base.solution);
-  const stored = base.currentRevision?.version === base.solution.version ? base.currentRevision.match : null;
-  const match = stored ?? base.match ?? matchResources({requirements:base.requirements,scene:base.scene ?? base.solution.scene});
-  const snapshot = generatedRecord({ ...base, match }, drawing);
+  const snapshot = generatedRecord(base, drawing);
   const previews = makeVisualPreviews(snapshot.solution, {brief:snapshot.brief,drawing});
   const images = previewRecords(previews,snapshot.brief);
   const textFiles = {
@@ -421,7 +427,7 @@ export function preparePythonExport(project, photos = [], delivery = false) {
     ...Object.fromEntries(images.map(image=>[image.filename,image.svg])),
   };
   const outputs = ['04-海派定制整体方案初稿.md','06-成套标准化AI视觉提示词.md','08-定制业务专题台账.xlsx','09-款式技术平面图.svg','10-款式技术平面图.dxf'];
-  const names = Object.fromEntries([...Object.keys(textFiles),...outputs,...photos.map(photo=>photo.file)].sort().map(key=>[key,null]));
+  const names = Object.fromEntries([...Object.keys(textFiles),...outputs,...photos.map(photo=>photo.file)].map(key=>[key,null]));
   const manifest=caseManifest(snapshot,previews,images,photos,names);
   manifest.packagePurpose = delivery ? '核对版交付包' : '内部工作包';
   const photoFiles = photos.map(({file,bytes})=>{
@@ -436,9 +442,9 @@ export function preparePythonExport(project, photos = [], delivery = false) {
 }
 
 export function makeArtifactPack(project, photos = [], delivery = false) {
-  const base = snapshotOf(project);
+  const base = snapshotWithMatch(project);
   const drawing = makeDrawing(base.solution);
-  const snapshot = generatedRecord({ ...base, match: matchResources({ requirements: base.requirements, scene: base.scene ?? base.solution.scene }) }, drawing);
+  const snapshot = generatedRecord(base, drawing);
   const fields = normalizeRequirements(snapshot.requirements);
   const previews = makeVisualPreviews(snapshot.solution, { brief: snapshot.brief, drawing });
   const images = previewRecords(previews, snapshot.brief);
@@ -459,5 +465,5 @@ export function makeArtifactPack(project, photos = [], delivery = false) {
   const manifest = caseManifest(snapshot, previews, images, photos, files);
   manifest.packagePurpose = delivery ? "核对版交付包" : "内部工作包";
   files[manifestFile] = strToU8(JSON.stringify(manifest, null, 2));
-  return zipSync(files, { level: 6 });
+  return zipSync(Object.fromEntries(manifest.deliverables.map(name => [name, files[name]])), { level: 6 });
 }

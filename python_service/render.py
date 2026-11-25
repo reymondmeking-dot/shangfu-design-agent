@@ -20,6 +20,8 @@ from ezdxf.enums import TextEntityAlignment
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 import xlsxwriter
 
+from .visual_store import SPECS, dimensions as jpeg_dimensions
+
 
 ROOT = Path(__file__).resolve().parent
 TEMPLATES = Environment(loader=FileSystemLoader(ROOT / "templates"), undefined=StrictUndefined, autoescape=False)
@@ -174,27 +176,35 @@ def render_solution(solution, drawing, brief, geometry=None):
 def make_workbook(sheets):
     output = BytesIO()
     with xlsxwriter.Workbook(output, {"constant_memory":True,"strings_to_formulas":False,"strings_to_urls":False}) as book:
-        body = book.add_format({"font_name":"Microsoft YaHei","font_size":11,"text_wrap":True,"valign":"top"})
-        heading = book.add_format({"font_name":"Microsoft YaHei","font_size":11,"bold":True,"bg_color":"#12333D","font_color":"#FFFFFF","valign":"vcenter","text_wrap":True})
+        text_style = {"font_name":"Microsoft YaHei", "font_size":11, "text_wrap":True, "valign":"top"}
+        body = book.add_format(text_style)
+        heading = book.add_format({**text_style, "bold":True, "bg_color":"#12333D", "font_color":"#FFFFFF", "valign":"vcenter"})
+        date_styles = {kind:book.add_format({**text_style, "num_format":fmt}) for kind,fmt in
+                       (("date","yyyy-mm-dd"), ("timestamp","yyyy-mm-dd hh:mm:ss.000"))}
         for table in sheets:
             ws = book.add_worksheet(table["name"])
             ws.freeze_panes(1,0)
             widths = table["widths"]
+            dates = table.get("dates",{})
             for col,width in enumerate(widths):
                 ws.set_column(col,col,width)
             for row,values in enumerate(table["rows"]):
                 fmt = heading if row == 0 else body
                 lines = 1
                 for col,value in enumerate(values):
-                    if value is None:
+                    if value is None or value == "":
                         continue
-                    if isinstance(value,(int,float)) and not isinstance(value,bool):
+                    date = dates.get(xlsxwriter.utility.xl_rowcol_to_cell(row,col))
+                    if date:
+                        ws.write_number(row,col,date["serial"],date_styles[date["kind"]])
+                    elif isinstance(value,(int,float)) and not isinstance(value,bool):
                         ws.write_number(row,col,value,fmt)
                     else:
-                        text = str(value)
-                        ws.write_string(row,col,text,fmt)
-                        lines = max(lines,sum(max(1,ceil(sum(2 if ord(ch)>127 else 1 for ch in line)/max(widths[col]-2,1))) for line in text.splitlines()))
-                ws.set_row(row,25 if row == 0 else min(409,max(21,lines*16)))
+                        ws.write_string(row,col,re.sub(r"[\ud800-\udfff]", "", str(value)),fmt)
+                    width = max(1,widths[col]-(4 if row == 0 else 2))
+                    parts = re.split(r"\r\n|\r|\n",str(value))
+                    lines = max(lines,sum(max(1,ceil(sum(2 if ord(ch)>127 else 1 for ch in line)/width)) for line in parts))
+                ws.set_row(row,min(409,max(25 if row == 0 else 21,lines*16)))
             if table["rows"]:
                 ws.autofilter(0,0,len(table["rows"])-1,len(widths)-1)
     return output.getvalue()
@@ -218,6 +228,13 @@ def render_export(model, kind):
     workbook = make_workbook(sheets)
     if kind == "xlsx":
         return workbook
+    manifest = deepcopy(model["manifest"])
+    if (manifest["solutionId"] != s["id"] or manifest["solutionId"] != b["solutionId"]
+            or not (manifest["version"] == s["version"] == b["version"])
+            or str(manifest["version"]) != str(model["geometry"]["revision"])
+            or not (manifest["cad"]["id"] == model["drawing"]["id"] == b["parameters"]["drawingId"])
+            or manifest["cad"]["unit"] != "mm"):
+        raise ValueError("方案、图纸及视觉需求的版本或单位不一致")
     if set(model["textFiles"]) != TEXT_FILES:
         raise ValueError("案例包文本文件不完整")
     files = {name:text.encode("utf-8") for name,text in model["textFiles"].items()}
@@ -226,11 +243,26 @@ def render_export(model, kind):
     files["08-定制业务专题台账.xlsx"] = workbook
     files["09-款式技术平面图.svg"] = svg_drawing(model["geometry"]).encode()
     files["10-款式技术平面图.dxf"] = dxf_drawing(model["geometry"]).encode()
-    manifest = deepcopy(model["manifest"])
     manifest["rendering"] = {"proposal":f"Jinja2 {library_version('Jinja2')}", "visualPrompts":f"Jinja2 {library_version('Jinja2')}",
         "drawingSvg":"Python xml.etree.ElementTree", "drawingDxf":f"ezdxf {ezdxf.__version__}",
         "ledger":f"XlsxWriter {xlsxwriter.__version__}", "archive":"Python zipfile"}
-    expected = {p["file"]:p for p in manifest["visual"]["photos"]["views"]}
+    views = manifest["visual"]["views"]
+    if len(views) != len(SPECS) or {v["key"] for v in views} != set(SPECS):
+        raise ValueError("视觉预览须包含成衣、特写和上身三个视角")
+    for view in views:
+        width, height = SPECS[view["key"]]
+        name = "视觉预览/" + PHOTO_NAMES[view["key"]].removesuffix(".jpg") + ".svg"
+        root = ET.fromstring(files[name])
+        if (view["file"] != name or (view["width"], view["height"]) != (width, height)
+                or view["id"] != f"{s['id']}-V{s['version']}-{view['key']}"
+                or root.tag != "{http://www.w3.org/2000/svg}svg"
+                or (root.get("width"), root.get("height"), root.get("viewBox")) != (str(width), str(height), f"0 0 {width} {height}")):
+            raise ValueError("预览文件与同版视角、画幅不符")
+    photo_views = manifest["visual"]["photos"]["views"]
+    expected = {p["file"]:p for p in photo_views}
+    if (len(expected) != len(photo_views) or len({p["key"] for p in photo_views}) != len(photo_views)
+            or sorted(expected) != sorted(p["file"] for p in model["photoFiles"])):
+        raise ValueError("效果图登记和实际文件须逐张对应")
     if kind == "delivery" and (manifest["packagePurpose"] != "核对版交付包" or
             {p["key"] for p in expected.values() if p["reviewStatus"] in ("reviewed","advisor-reviewed")} != set(PHOTO_NAMES)):
         raise ValueError("核对版要求三张完整的同版已核照片")
@@ -242,11 +274,14 @@ def render_export(model, kind):
     for photo in model["photoFiles"]:
         name = photo["file"]
         binary = base64.b64decode(photo["data"],validate=True)
-        if name not in expected or sha256(binary).hexdigest() != expected[name]["sha256"]:
-            raise ValueError("写实图文件摘要与本版登记不同")
+        view = expected[name]
+        size = SPECS[view["key"]]
+        if ((view["width"], view["height"]) != size or jpeg_dimensions(binary) != size
+                or sha256(binary).hexdigest() != view["sha256"]):
+            raise ValueError("写实图的实际像素或文件摘要与本版登记不同")
         files[name] = binary
     manifest_name = "11-交付验收清单.json"
-    if set(files) | {manifest_name} != set(manifest["deliverables"]):
+    if sorted([*files, manifest_name]) != sorted(manifest["deliverables"]):
         raise ValueError("归档文件集合与收件清单不同")
     files[manifest_name] = json.dumps(manifest,ensure_ascii=False,indent=2).encode()
     output = BytesIO()
