@@ -74,14 +74,14 @@ async function readBody(request, limit) {
 function demandRequirements(body) {
   const fields = Array.isArray(body.requirements) ? body.requirements : body.requirements?.fields;
   if (!Array.isArray(fields) || !fields.length || fields.length > 30) {
-    throw clientError('请先完成需求解构并确认参数。');
+    throw clientError('请先从客户原话提取参数，再由顾问确认。');
   }
   const keys = new Set();
   for (const field of fields) {
     if (typeof field?.key !== 'string' || keys.has(field.key) || field.key.length > 40 ||
         typeof field.value !== 'string' || field.value.length > 350 ||
         (field.evidence != null && (typeof field.evidence !== 'string' || field.evidence.length > 900))) {
-      throw clientError('需求参数包含重复字段或无效值。');
+      throw clientError('设计参数有重复项或未填对的值，请回到参数页核对。');
     }
     keys.add(field.key);
   }
@@ -96,7 +96,7 @@ function validateSolutionSnapshot(solution) {
         item.name === used.name && item.description === used.description && JSON.stringify(item.colors ?? []) === JSON.stringify(used.colors ?? []))) ||
       !['pattern','fabric','craft'].every(type => catalog.some(item => item.type === type && item.id === solution.selected?.[type])) ||
       !Number.isFinite(solution.cad?.placketWidth) || solution.cad.placketWidth < 20 || solution.cad.placketWidth > 50) {
-    throw clientError('当前方案、尺寸或资源引用无效。');
+    throw clientError('无法核对方案、尺寸或资源编号，请重新打开这版方案。');
   }
   const pattern = catalog.find(item => item.id === solution.selected.pattern);
   if (pattern.collar !== solution.cad.collar || solution.cad.patternId !== pattern.id ||
@@ -108,7 +108,7 @@ function validateSolutionSnapshot(solution) {
 
 function validateArchive(project) {
   if (!project.solution || !project.requirements || !Array.isArray(project.history) || project.history.length > 40) {
-    throw clientError('请先生成有效的方案和版本记录。');
+    throw clientError('还没有可用的方案版本，请先生成参考方案。');
   }
   validateSolutionSnapshot(project.solution);
   const expectedDrawing = 'CAD-' + project.solution.id + '-V' + project.solution.version;
@@ -254,21 +254,21 @@ async function api(request, env, path) {
         const currentText = body.text ?? body.currentRevision?.text ?? '';
         if (typeof currentText !== 'string' || currentText.trim() !== body.solution.sourceText?.trim() ||
             JSON.stringify(normalizeRequirements(body.requirements)) !== JSON.stringify(normalizeRequirements(body.solution.requirements))) {
-          return json({code:'DELIVERY_REVISION_STALE',error:'需求与归档方案不同，请先生成新版。'},422);
+          return json({code:'DELIVERY_REVISION_STALE',error:'客户需求已有改动，请按新需求生成方案。'},422);
         }
         const review = patternReviewState(body);
         if (!review.approved || (hasArchiveEvent && !review.archive)) {
-          return json({code:'DELIVERY_PATTERN_REVIEW_REQUIRED',error:'请版师记录当前方案及图纸的复核意见并通过，再由业务人员确认归档。'},422);
+          return json({code:'DELIVERY_PATTERN_REVIEW_REQUIRED',error:'请由版师核对这版方案和图纸。复核通过后，再确认归档。'},422);
         }
         if (archive.status !== '已归档' || !review.archive || !Number.isFinite(Date.parse(archive.archivedAt))) {
-          return json({code:'DELIVERY_ARCHIVE_REQUIRED',error:'请由业务人员确认当前方案版本归档。'},422);
+          return json({code:'DELIVERY_ARCHIVE_REQUIRED',error:'这版方案还没归档，请先确认归档。'},422);
         }
       }
       const photographs = await archivePhotos(body,env,new URL(request.url).origin);
       if (delivery) {
         const accepted = new Set(photographs.filter(p=>['reviewed','advisor-reviewed'].includes(p.reviewStatus)).map(p=>p.key));
         const pending = ['garment','detail','on-body'].filter(key=>!accepted.has(key));
-        if (pending.length) return json({code:'DELIVERY_PHOTOS_REQUIRED',error:'成衣、工艺特写、上身三张图须全部完成本版核对。请处理缺图、待核或退回的视角。',pending},422);
+        if (pending.length) return json({code:'DELIVERY_PHOTOS_REQUIRED',error:'请到效果图页核对成衣、工艺特写和上身图。缺图先补，退回的图改后再核。',pending},422);
       }
       if (env.SHANGFU_ORIGIN) return pythonExport(env,delivery?'delivery':'bundle',body,photographs);
       return new Response(makeArtifactPack(body,photographs,delivery), { headers: {
@@ -291,7 +291,7 @@ async function archivedProject(env,submitted) {
   if (stored.phase!=='archived' || stored.solution?.id!==submitted.solution.id || stored.solution.version!==submitted.solution.version ||
       stored.solution.sourceText?.trim()!==submitted.text?.trim() ||
       JSON.stringify(normalizeRequirements(stored.requirements))!==JSON.stringify(normalizeRequirements(submitted.requirements))) {
-    return json({code:'DELIVERY_REVISION_STALE',error:'提交的需求或方案与版本库归档不一致。'},422);
+    return json({code:'DELIVERY_REVISION_STALE',error:'这次提交的需求或方案与归档版本不同，请打开已归档的版本。'},422);
   }
   const photos=await pythonRequest(env,base+'/visual-images/'+encodeURIComponent(stored.solution.id));
   if (!photos.ok) return photos;

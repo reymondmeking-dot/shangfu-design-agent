@@ -70,7 +70,7 @@ export async function getPhotoSet(solution, env, origin, sourceText, includeByte
   const images = await Promise.all(photos.filter(spec=>!requiredView || spec.key===requiredView).map(async spec => {
     const name = 'photo-' + candidate.id + '-' + spec.key + '.jpg';
     const image = await staticAsset(env,origin,name);
-    if (!image.ok) throw error(503,'PHOTO_ASSET_MISSING','已核对的写实图文件暂不可用。');
+    if (!image.ok) throw error(503,'PHOTO_ASSET_MISSING','暂时打不开已核对的效果图，请稍后重试。');
     const bytes = new Uint8Array(await image.arrayBuffer());
     if (await sha(bytes) !== set[spec.key].sha256) throw error(503,'PHOTO_ASSET_CHANGED','写实图文件已变化，须重新核对。');
     try { assertJpeg(bytes,spec); }
@@ -144,7 +144,7 @@ async function fingerprint(solution) {
 }
 async function secret(env) {
   if (typeof env.SESSION_SECRET !== 'string' || env.SESSION_SECRET.length < 32) {
-    throw error(503,'PHOTO_SERVICE_UNAVAILABLE','当前服务未配置效果图回执签名。');
+    throw error(503,'PHOTO_SERVICE_UNAVAILABLE','暂时无法核实图片来源，请联系工作台管理员。');
   }
   return crypto.subtle.importKey('raw',encoder.encode(env.SESSION_SECRET),{name:'HMAC',hash:'SHA-256'},false,['sign','verify']);
 }
@@ -160,7 +160,7 @@ async function verifiedImage(input, identity, signingKey) {
   if (!receipt || (receipt[1] !== 'v1') !== Boolean(receipt[3]) || receipt[1] === 'v3' && !edit || (spec.key === 'garment') !== (receipt[2] === '0') ||
     !await crypto.subtle.verify('HMAC',signingKey,Uint8Array.from(receipt[4].match(/../g), v=>parseInt(v,16)),
       receiptData(identity,spec.key,digest,receipt[2],receipt[3],edit?.editMethod))) {
-    throw error(422,'PHOTO_RECEIPT_MISMATCH','效果图回执与当前方案、视角或图像不符，请重新生成。');
+    throw error(422,'PHOTO_RECEIPT_MISMATCH','图片记录与本版方案或所选视角对不上，请重新生成。');
   }
   return {...descriptor(spec),bytes,sha256:digest,parent:receipt[2],designReferenceSha256:receipt[3] || null,receipt:input.receipt,source:model,...edit};
 }
@@ -239,7 +239,7 @@ async function renderJpeg(env,bytes,spec,reference=false,trim=null) {
 export async function generatePhoto(solution, key, reference, env, request, feedback='') {
   const spec = view(key), identity = await fingerprint(solution), signingKey = await secret(env);
   if (typeof feedback !== 'string' || feedback.length>400) throw error(422,'PHOTO_FEEDBACK_INVALID','单张效果图的修改意见须在400字以内。');
-  if (key !== 'garment' && reference?.key !== 'garment') throw error(422,'PHOTO_REFERENCE_REQUIRED','请先生成同版成衣正背面，再以它为参照生成该视角。');
+  if (key !== 'garment' && reference?.key !== 'garment') throw error(422,'PHOTO_REFERENCE_REQUIRED','请先生成这版成衣的正背面，再用它生成特写或上身图。');
   const base = key === 'garment' ? null : await verifiedImage(reference,identity,signingKey);
   const sourceView = await revisionReference(solution,key,env,new URL(request.url).origin);
   if (canConstrainPlacket(solution,key,sourceView,feedback) && (!base || base.editMethod === 'local-placket-edit')) {
@@ -250,7 +250,7 @@ export async function generatePhoto(solution, key, reference, env, request, feed
     return {solutionId:solution.id,version:solution.version,image:{...descriptor(spec),data:asBase64(bytes),
       receipt:'v3.'+parent+'.'+designRef+'.'+signature,sha256:digest,designReferenceSha256:designRef,...edit,reviewStatus:'pending'}};
   }
-  if (!env.AI?.run || !env.IMAGES?.input) throw error(503,'PHOTO_SERVICE_UNAVAILABLE','当前服务未接通写实出图。');
+  if (!env.AI?.run || !env.IMAGES?.input) throw error(503,'PHOTO_SERVICE_UNAVAILABLE','暂时不能生成写实图。可先复制绘图提示词。');
   if (env.MODEL_LIMITER && !(await env.MODEL_LIMITER.limit({key:'photo:'+ (request.headers.get('cf-connecting-ip') || 'local')})).success) {
     throw error(429,'PHOTO_RATE_LIMITED','出图请求较多，请稍后重试。');
   }
@@ -278,7 +278,7 @@ export async function generatePhoto(solution, key, reference, env, request, feed
     return {solutionId:solution.id,version:solution.version,image:{...descriptor(spec),data:asBase64(bytes),
       receipt:(designRef?'v2.'+parent+'.'+designRef:'v1.'+parent)+'.'+signature,sha256:digest,designReferenceSha256:designRef || null,source:model,reviewStatus:'pending'}};
   } catch {
-    throw error(502,'PHOTO_GENERATION_FAILED','模型或图像处理服务未返回合格的写实图，本次未保存图片。');
+    throw error(502,'PHOTO_GENERATION_FAILED','这次生成的图片未通过检查，请重新生成。');
   }
 }
 export async function archivePhotos(project,env,origin) {

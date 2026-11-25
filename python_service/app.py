@@ -109,9 +109,9 @@ def extract_stage(req:Extract):
         reuse=req.reuseNoteId if 'reuseNoteId' in req.model_fields_set else p['reused']
         if reuse and (p['reused']!=reuse or p['scene']!=req.scene):
             note=con.execute("SELECT data FROM stage WHERE kind='reuse' AND id=?",(reuse,)).fetchone()
-            ensure(note and json.loads(note[0])['scene']==req.scene,'REUSE_NOT_APPROVED','复用记录须已批准并适配本单场景。',422)
+            ensure(note and json.loads(note[0])['scene']==req.scene,'REUSE_NOT_APPROVED','只能选用已批准、适合本单场景的检查项。',422)
         db.insert(con,pid,'extraction',db.uid('EXT'),result,iid)
-        db.event(con,pid,stamp('extract','根据客户原话生成需求解构草稿','Agent',projectId=pid,intakeId=iid))
+        db.event(con,pid,stamp('extract','整理客户原话，提取设计参数','Agent',projectId=pid,intakeId=iid))
         return dict(result),{'title':req.title,'scene':req.scene,'phase':'extracted','intake':iid,'requirement':None,'match':None,'review':None,'reused':reuse}
     return db.mutate(pid,req,'extract',action,create=(req.title,req.scene,req.reuseNoteId))
 
@@ -161,7 +161,7 @@ def solution_stage(req:Solution):
     if not req.projectId:return make_proposal(req,parameters)
     pid=req.projectId
     def action(con,p):
-        ensure(p['phase'] in ('matched','generated','approved','archived','revise-pattern') and p['match'],'MATCH_REQUIRED','请先完成当前原话的确认和合格匹配。')
+        ensure(p['phase'] in ('matched','generated','approved','archived','revise-pattern') and p['match'],'MATCH_REQUIRED','请先确认本单需求，再选可以搭配的版型、面料和工艺。')
         ensure(req.version==p['version']+1,'VERSION_CONFLICT','请基于当前方案生成下一版。')
         ensure(not req.matchId or req.matchId==p['match'],'MATCH_STALE','资源匹配版本已变化。')
         ensure(req.scene==p['scene'],'MATCH_STALE','业务场景已变更。')
@@ -172,7 +172,7 @@ def solution_stage(req:Solution):
         elif parameters.get('reusedChecks'):
             raise BusinessError('REUSE_NOT_APPROVED','请先关联已批准的复用记录。')
         matched=db.stage(con,pid,'match',p['match'])
-        ensure(not matched['blocked'],'MATCH_BLOCKED','请先处理资源证据缺口。')
+        ensure(not matched['blocked'],'MATCH_BLOCKED','所选资源缺少核对依据，请查看资产卡或改选其他资源。')
         chosen={**matched['recommended'],**(req.selected or {})}
         ensure(all(not aid or any(i['id']==aid and i['type']==kind for i in matched['eligible']) for kind,aid in chosen.items()),
                'RESOURCE_INELIGIBLE','所选资源不在本次可用候选中。',422)
@@ -204,7 +204,7 @@ def revision(con,p,req):
 def review(pid:str,req:Review):
     def action(con,p):
         record=revision(con,p,req)
-        ensure(p['phase'] in ('generated','approved'),'NEW_REVISION_REQUIRED','请先完成当前退回或建立新版。')
+        ensure(p['phase'] in ('generated','approved'),'NEW_REVISION_REQUIRED','这版已退回，请按复核意见修改并生成新版。')
         key=req.reviewId or db.uid('REV')
         e=stamp('pattern-review','版师复核：'+req.comment,'版师',req.version,**record['trace'],reviewId=key,decision=req.decision,comment=req.comment)
         db.insert(con,pid,'review',key,e,p['solution'],req.version)
@@ -219,7 +219,7 @@ def archive(pid:str,req:Archive):
         record=revision(con,p,req)
         ensure(p['phase']=='approved' and p['review']==req.reviewId,'DELIVERY_PATTERN_REVIEW_REQUIRED','当前图纸须先通过版师复核。',422)
         decision=db.stage(con,pid,'review',req.reviewId)
-        ensure(decision and decision['decision']=='approved' and decision['drawingId']==req.drawingId,'DELIVERY_PATTERN_REVIEW_REQUIRED','未找到同版版师意见。',422)
+        ensure(decision and decision['decision']=='approved' and decision['drawingId']==req.drawingId,'DELIVERY_PATTERN_REVIEW_REQUIRED','这版图纸还没有版师的复核意见。',422)
         e=stamp('archive','业务人员确认归档参考稿','业务人员',req.version,**record['trace'],reviewId=req.reviewId)
         db.insert(con,pid,'archive',req.solutionId,e,req.reviewId,req.version)
         db.event(con,pid,e)
@@ -279,7 +279,7 @@ def get_project(pid:str):
 @app.post('/v1/render/{kind}')
 def render(kind:Literal['xlsx','bundle','delivery'],req:RenderJob):
     if kind=='delivery':
-        ensure(req.projectId and req.solutionId and req.version,'DELIVERY_ARCHIVE_REQUIRED','核对版需要已归档的持久化项目。',422)
+        ensure(req.projectId and req.solutionId and req.version,'DELIVERY_ARCHIVE_REQUIRED','请先将项目归档，再导出核对版交付包。',422)
         with db.connection() as con:
             p=db.require_project(con,req.projectId)
             ensure(p['phase']=='archived' and p['solution']==req.solutionId and p['version']==req.version and db.stage(con,p['id'],'archive',req.solutionId),

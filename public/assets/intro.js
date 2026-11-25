@@ -72,23 +72,13 @@ function startIntro() {
     <div class="atelier-intro-stage">
       <div class="atelier-intro-wordmark">
         <div class="atelier-intro-group">
-          <img src="/design-agent/assets/shangfu-logo.webp" width="242" height="64" alt="" decoding="async" hidden>
-          <span>上海服装集团</span>
+          <span>模拟定制工作台</span>
         </div>
         <span class="atelier-intro-title">海派定制顾问</span>
       </div>
       <canvas class="atelier-intro-pattern" width="420" height="320"></canvas>
     </div>`;
 
-  const logo = cover.querySelector('img');
-  const label = cover.querySelector('.atelier-intro-group span');
-  const showLogo = () => {
-    if (!logo.naturalWidth) return;
-    logo.hidden = false;
-    label.hidden = true;
-  };
-  if (logo.complete) showLogo();
-  else logo.addEventListener('load', showLogo, { once: true });
   linework(cover.querySelector('canvas'));
 
   const listeners = new AbortController();

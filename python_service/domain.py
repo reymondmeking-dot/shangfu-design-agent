@@ -164,7 +164,7 @@ def rank_assets(connection,requirements,scene):
             elif field['level']=='required':
                 codes,excluded=field.get('codes',[]),field.get('excluded',[])
                 if field.get('unrecognized') or not (codes or excluded) or actual in (None,'unknown'):
-                    check=('needsReview',field['label']+'缺少可核验记录')
+                    check=('needsReview',field['label']+'没有对应的资产记录')
                 elif actual in excluded or codes and actual not in codes:
                     check=('rejected',field['label']+'与硬条件不符：'+field['value'])
         check=check or aid_row['check']
@@ -193,17 +193,17 @@ def rank_assets(connection,requirements,scene):
                             or 'weightClasses'in craft and fabric.get('weightClass') not in craft['weightClasses']):
                         continue
                     chosen.update(pattern=pattern['id'],fabric=fabric['id'],craft=craft['id'])
-                    return {**buckets,'recommended':chosen,'blocked':False,'reason':'已核对硬要求、工艺适配领型、活动量及面料厚度。'}
-    return {**buckets,'recommended':chosen,'blocked':True,'reason':reason or '缺少已核验的兼容组合，请顾问复核。'}
+                    return {**buckets,'recommended':chosen,'blocked':False,'reason':'已按本单的硬要求核对领型、工艺、活动量和面料厚度。'}
+    return {**buckets,'recommended':chosen,'blocked':True,'reason':reason or '还没有找到能搭配的一组版型、面料和工艺，请核对资产卡。'}
 
 
 def scope_conflict(requirements,aid):
     fields=aid['fields']
     if any(f['level']=='required' and f['key'] not in aid['knownKeys'] for f in requirements['fields']):
-        return '存在未识别的硬要求字段，请顾问复核。'
+        return '有一项硬要求无法匹配，请回到设计参数页核对。'
     if re.search('连衣裙|半身裙|西裤|长裤|衬衫|马甲|短裙|短裤',fields.get('garmentScope',{}).get('value','')):
         return '模拟库只有外套、夹克和西装上衣基版，请确认分单范围。'
-    if fields.get('designDetail',{}).get('level')=='required':return '指定纹样缺少已核验样卡。'
+    if fields.get('designDetail',{}).get('level')=='required':return '还没有可核对的花型样卡，请先确认客户指定的纹样。'
     if any(fields[k].get('conflict') for k in ('care','collar')):return '领型或护理要求存在冲突，请顾问重新确认。'
     if fields.get('placketWidthRequest',{}).get('level')=='required':
         width=aid['width']

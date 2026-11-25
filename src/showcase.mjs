@@ -67,7 +67,7 @@ function headings(title,description,pathname,contents) {
 <meta name="description" content="${escape(description)}"><title>${escape(title)}｜海派定制顾问</title>
 <link rel="stylesheet" href="/design/assets/radix.css"><link rel="stylesheet" href="/design/assets/site.css"></head>
 <body><a class="skip" href="#main">跳到正文</a><header class="mast"><div class="shell mast-inner">
-<a class="brand" href="/design" aria-label="海派定制顾问，作品首页"><strong>海派定制顾问</strong><span class="brand-caption">服装板块参赛作品</span></a>
+<a class="brand" href="/design" aria-label="海派定制顾问，作品首页"><strong>海派定制顾问</strong><span class="brand-caption">上海服装集团命题</span></a>
 <nav aria-label="作品导航">${nav.map(([url,label])=>`<a href="${url}"${pathname===url?' aria-current="page"':''}>${label}</a>`).join('')}</nav></div></header>
 <main id="main" class="shell">${contents}</main><footer><div class="shell foot"><span>海派定制顾问</span><div><a href="/design-agent">业务工作台</a><a href="${repo}">GitHub 源码</a></div></div></footer></body></html>`;
 }
@@ -78,7 +78,7 @@ function figure(src,alt,caption,css='') {
 
 function chips(key,step,version,followup) {
   const choices=key==='atelier'?[[1,'交领无扣'],[3,'低立领无扣']]:[[1,'30 mm'],[2,'35 mm']];
-  return `<nav class="versions" aria-label="比较订单版本">${choices.map(([v,label])=>`<a href="${exampleUrl(key,step,v,followup)}"${v===version?' aria-current="true"':''}>V${v}　${label}</a>`).join('')}</nav>${key==='atelier'?'<p class="fine">选看初稿与领型修订稿。中间试稿 V2 略。</p>':''}`;
+  return `<nav class="versions" aria-label="比较订单版本">${choices.map(([v,label])=>`<a href="${exampleUrl(key,step,v,followup)}"${v===version?' aria-current="true"':''}>V${v}　${label}</a>`).join('')}</nav>${key==='atelier'?'<p class="fine">可比较 V1 初稿和 V3 领型修订稿。中间试稿 V2 略。</p>':''}`;
 }
 
 function stage(key,step,v,data) {
@@ -91,36 +91,36 @@ function stage(key,step,v,data) {
   const pairs=rows=>`<dl class="pairs">${rows.map(([a,b])=>`<div><dt>${escape(a)}</dt><dd>${escape(b)}</dd></div>`).join('')}</dl>`;
   const intro=(h,body)=>`<h3>${escape(h)}</h3><p>${escape(body)}</p>`;
   const button=(url,label,download=false)=>`<a class="button outline" href="${url}"${download?' download':''}>${label}</a>`;
-  if(step===1) return `<h3>客户原话</h3><blockquote>${escape(p.text)}</blockquote>${pairs([['项目编号',p.id],['使用场景',p.label],['输入来源','公开虚构案例'],...(followup?[['上单已批准的通用检查项',s.reusedChecks[0]]]:[])])}`;
-  if(step===2) return `<h3>六维设计参数</h3><dl class="fields">${dimensionKeys.map((key,index)=>{
+  if(step===1) return `<h3>客户原话</h3><blockquote>${escape(p.text)}</blockquote>${pairs([['项目编号',p.id],['使用场景',p.label],['输入来源','模拟订单'],...(followup?[['上一单批准复用的检查项',s.reusedChecks[0]]]:[])])}`;
+  if(step===2) return `<h3>六项设计参数</h3><dl class="fields">${dimensionKeys.map((key,index)=>{
     const f=req.fields.find(item=>item.key===key);
     return `<div><dt>${dimensionNames[index]}</dt><dd>${escape(f.value||'待确认')}</dd><dd class="source">${escape(sourceLabels[f.source]||'待确认')}${f.evidence?'　'+escape(f.evidence):''}</dd></div>`;
   }).join('')}</dl><p class="fine">审美标签　${escape(req.aestheticTags.join('、')||'待确认')}</p>`;
-  if(step===3) return intro('顾问核对原话',isPrivate&&v===3?'客户改领型，顾问重新确认新版原话，另存需求编号并重新匹配。':'顾问逐项确认硬要求，未说明的参数保留为待确认。')+
-    pairs([['已表达',isPrivate?s.cad.collarLabel+'、无扣开襟、细暗纹':headcount+'，必须可机洗、采用藏蓝'],['待追问',p.question],['确认记录',trace.requirementId]]);
-  if(step===4) return `<h3>匹配到的模拟资源</h3>${pairs(s.assets.map(a=>[typeLabels[a.type],a.id+'　'+a.name]))}<p class="fine">${escape(isPrivate?s.cad.collarLabel+'和细暗纹分别核对版型与面料。无扣开襟使用一体式贴边，主色待看实物色卡。':'可机洗是硬要求。护理依据不明的面料进入待核清单。')}</p>`;
-  if(step===5) return `<h3>${escape(p.title)}参考初稿</h3><p>${escape(s.summary)}</p>${pairs(s.sections.map(row=>[row.title,row.body]).concat([['可行性提示',s.checks[0]],...(followup?[['上单复用',s.reusedChecks[0]]]:[])]))}`;
+  if(step===3) return intro('顾问核对原话',isPrivate&&v===3?'客户要求改为低立领。顾问保留原记录，按新要求确认并重选版型。':'先核对客户明确提出的要求。没有说清的地方留待追问。')+
+    pairs([['客户已说明',isPrivate?s.cad.collarLabel+'、无扣开襟、细暗纹':headcount+'，必须可机洗、采用藏蓝'],['还需询问',p.question],['确认记录',trace.requirementId]]);
+  if(step===4) return `<h3>本版选用的资源</h3>${pairs(s.assets.map(a=>[typeLabels[a.type],a.id+'　'+a.name]))}<p class="fine">${escape(isPrivate?s.cad.collarLabel+'对应所选版型。面料选细暗纹，门襟配无扣贴边。主色待客户查看实物色卡。':'这单必须可机洗。护理卡没有注明洗法的面料留待核实。')}</p>`;
+  if(step===5) return `<h3>${escape(p.title)}参考初稿</h3><p>${escape(s.summary)}</p>${pairs(s.sections.map(row=>[row.title,row.body]).concat([['可行性提示',s.checks[0]],...(followup?[['上一单的检查项',s.reusedChecks[0]]]:[])]))}`;
   if(step===6) {
     const b=makeVisualBrief(s,describeDrawing(s));
-    return `<h3>款式技术图与绘图要求</h3>
-    <a class="drawing" href="${downloadPath('svg')}" aria-label="打开完整同版技术图"><img src="${downloadPath('svg')}" alt="本版款式技术图，含正背轮廓、六个毫米测点及 100 mm 校尺" loading="lazy"></a>
-    <div class="actions">${button(downloadPath('dxf'),'下载 DXF',true)}${button(downloadPath('svg'),'下载 SVG',true)}</div>
+    return `<h3>款式图与 AI 绘图提示词</h3>
+    <a class="drawing" href="${downloadPath('svg')}" aria-label="打开本版完整款式图"><img src="${downloadPath('svg')}" alt="本版款式技术图，含正背轮廓、六个毫米测点及 100 mm 校尺" loading="lazy"></a>
+    <div class="actions">${button(downloadPath('dxf'),'下载 CAD 图（DXF）',true)}${button(downloadPath('svg'),'下载矢量图（SVG）',true)}</div>
     <div class="prompt-list">${b.prompts.map(pr=>`<details><summary>${escape(pr.title)}<small>${pr.width} × ${pr.height} px</small></summary><p>${escape(pr.text)}</p></details>`).join('')}</div>`;
   }
   if(step===7) {
-    const review=isPrivate?(v===1?'V1 为交领无扣。客户提出改为低立领，版师将领型变更退回顾问确认。':'顾问已确认必须低立领，重新匹配 PAT-002，保留无扣开襟。模拟版师复核通过。'):(v===1?'模拟版师退回 V1，要求将门襟从 30 mm 调至 35 mm 后重新提交。':'V2 门襟已调至 35 mm，模拟版师复核通过，可转业务人员归档。');
+    const review=isPrivate?(v===1?'V1 是交领无扣外套。客户提出改为低立领，版师请顾问重新确认领型。':'顾问确认低立领是必备条件，改用 PAT-002，沿用无扣开襟。版师已复核 V3。'):(v===1?'版师退回 V1，要求将门襟从 30 mm 加宽至 35 mm 后再交图。':'V2 门襟已改为 35 mm。版师复核通过，可交业务人员归档。');
     return intro(isPrivate?'版师复核领型变更':'版师复核门襟宽度',review)+
-      pairs([[isPrivate?'本版领型':'本版测点',isPrivate?s.cad.collarLabel+'、无扣开襟':s.cad.placketWidth+' mm'],['试穿复核项',p.review]])+
-      '<div class="actions">'+button(exampleUrl(key,3,isPrivate?final:v,followup),isPrivate?'回到新版需求确认':'回看需求确认')+button(exampleUrl(key,6,final,followup),'核对 V'+final+' 图纸')+'</div>';
+      pairs([[isPrivate?'本版领型':'本版测点',isPrivate?s.cad.collarLabel+'、无扣开襟':s.cad.placketWidth+' mm'],['试穿时检查',p.review]])+
+      '<div class="actions">'+button(exampleUrl(key,3,isPrivate?final:v,followup),isPrivate?'回到新版需求确认':'查看已确认要求')+button(exampleUrl(key,6,final,followup),'核对 V'+final+' 图纸')+'</div>';
   }
-  if(step===8) return intro('导出本版工作台账','五张工作表记录原话、选料、测点、修改意见和归档版本。')+
-    pairs([['项目编号',p.id],['方案编号',s.id],['模拟归档状态',v!==1?'版师复核通过，业务人员已归档':isPrivate?'领型变更已退回顾问确认':'图纸已退回，保留历史草稿']])+
-    `<div class="actions">${button(downloadPath('xlsx'),'下载可编辑台账',true)}${button(downloadPath('json'),'下载案例参数 JSON',true)}</div>`;
-  if(v===1)return intro('核对归档版，再复用','V1 已退回。获准复用的检查项记在已归档的 V'+final+' 中。')+
+  if(step===8) return intro('本版业务台账','五张工作表记录原话、选料、测点、修改意见和归档版本。')+
+    pairs([['项目编号',p.id],['方案编号',s.id],['归档状态',v!==1?'版师复核通过，业务人员已归档':isPrivate?'领型变更已退回顾问确认':'图纸已退回，旧版存档备查']])+
+    `<div class="actions">${button(downloadPath('xlsx'),'下载可编辑台账（XLSX）',true)}${button(downloadPath('json'),'下载案例参数（JSON）',true)}</div>`;
+  if(v===1)return intro('查看已批准的检查项','V1 已退回。已批准的检查项保存在归档版 V'+final+' 中。')+
     '<div class="actions">'+button(exampleUrl(key,9,final,followup),'查看 V'+final+' 复用检查项 →')+'</div>';
-  return intro('下一单只带入批准的检查项','模拟顾问整理了本案可复用的检查事项。新项目重新记录客户原话，再确认这条经验是否适用。')+
-    pairs([['模拟顾问已批准',p.reuse],['留在本单','客户原话、个人尺寸与本版资产组合']])+
-    (followup?'':'<div class="actions">'+button(exampleUrl(key,1,1,true),'带入下一份模拟订单 →')+'</div>');
+  return intro('下一单可沿用的检查项','新单重新录入客户原话，再核对这条检查项是否适用。')+
+    pairs([['顾问已批准',p.reuse],['仅随本单保存','客户原话、个人尺寸和本版选料']])+
+    (followup?'':'<div class="actions">'+button(exampleUrl(key,1,1,true),'沿用检查项开新单 →')+'</div>');
 }
 
 function landing(url) {
@@ -134,10 +134,10 @@ function landing(url) {
   const nextStep=returned?(key==="atelier"?3:6):step+1;
   const nextVersion=returned?cases[key].finalVersion:v;
   const nextLabel=returned?(key==="atelier"?"回到 V3 需求确认":"转到 V2 修订图纸"):"下一步　"+steps[step];
-  return headings('案例体验','从模拟客户原话到设计参数、款式图与归档台账。',base,`
-<section class="hero"><div class="hero-copy"><span class="eyebrow">高级定制与团体职业服</span><h1>海派定制顾问</h1><p>把客户的穿着想法转成可复核的版型、面料与工艺方案。</p><div class="actions"><a class="button solid" href="#case">体验模拟案例 <span aria-hidden="true">↓</span></a><a class="button outline" href="/design-agent">进入业务工作台</a></div></div>
+  return headings('案例体验','查看两份模拟订单的原话、选料、图纸和台账。',base,`
+<section class="hero"><div class="hero-copy"><span class="eyebrow">高级定制与团体职业服</span><h1>海派定制顾问</h1><p>选择一份订单，核对客户要求、选料依据和图纸改动，下载已归档的台账。</p><div class="actions"><a class="button solid" href="#case">查看模拟订单 <span aria-hidden="true">↓</span></a><a class="button outline" href="/design-agent">进入业务工作台</a></div></div>
 <div class="hero-visual"><img src="${illustration('concierge-garment.jpg')}" alt="藏蓝礼宾夹克的正面和背面参考图" width="1500" height="1000" fetchpriority="high"><span>礼宾夹克　成衣正背面参考</span></div></section>
-<section id="case" class="case-section"><div class="section-row"><div><span class="eyebrow">可交互模拟案例</span><h2>沿着一张订单看设计</h2></div><nav class="case-picker" aria-label="选择业务案例">${Object.entries(cases).map(([k,c])=>`<a href="${exampleUrl(k,step,v===1?1:c.finalVersion)}"${key===k?' aria-current="true"':''}>${c.label}</a>`).join('')}</nav></div>
+<section id="case" class="case-section"><div class="section-row"><div><span class="eyebrow">模拟订单</span><h2>订单办理过程</h2></div><nav class="case-picker" aria-label="选择业务案例">${Object.entries(cases).map(([k,c])=>`<a href="${exampleUrl(k,step,v===1?1:c.finalVersion)}"${key===k?' aria-current="true"':''}>${c.label}</a>`).join('')}</nav></div>
 <div class="studio"><nav class="stage-nav" aria-label="九个业务节点">${steps.map((label,i)=>`<a href="${exampleUrl(key,i+1,v,followup)}"${step===i+1?' aria-current="step"':''}><span>${String(i+1).padStart(2,'0')}</span>${label}</a>`).join('')}</nav>
 <article class="case-content" aria-label="${escape(data.project.title)}，${steps[step-1]}"><div class="case-meta"><span>${escape(data.project.title)}</span><span>V${v} / ${data.project.id}</span></div>
 ${chips(key,step,v,followup)}${stage(key,step,v,data)}<div class="pager">${step>1?`<a href="${exampleUrl(key,step-1,v,followup)}">← 上一步</a>`:'<span></span>'}${step<9?`<a href="${exampleUrl(key,nextStep,nextVersion,followup)}">${nextLabel} →</a>`:`<a href="${exampleUrl(key==='atelier'?'concierge':'atelier',1,1)}">查看另一案例 →</a>`}</div></article></div></section>`);
@@ -145,28 +145,28 @@ ${chips(key,step,v,followup)}${stage(key,step,v,data)}<div class="pager">${step>
 
 function overview() {
   const rows=[
-    ['01 需求录入','FastAPI / SQLite','保存项目编号与客户原话'],['02 需求解构','Ollama / Qwen3 / Pydantic','抽取六维参数，核对逐字证据'],
-    ['03 人工确认','FastAPI / SQLite','顾问校正草稿，保留确认版本'],['04 资源匹配','SQLite / Python','四类资产先筛硬条件，再排序'],
-    ['05 方案初稿','Jinja2','输出选料、版型、场景和设计要点'],['06 图纸与提示词','ezdxf / SVG / Jinja2','同版技术图与三类视觉提示'],
-    ['07 版师复核','FastAPI / 版本库','审批或退回需求、尺寸与图纸'],['08 归档导出','SQLite / XlsxWriter','按版导出台账和案例包'],
-    ['09 复盘复用','SQLite','下一项目引用已批准的通用检查项'],
+    ['01 需求录入','FastAPI / SQLite','为原话建立项目编号并单独保存'],['02 需求解构','Ollama / Qwen3 / Pydantic','整理六项设计参数，并标出对应原话'],
+    ['03 人工确认','FastAPI / SQLite','保存顾问核对过的需求'],['04 资源匹配','SQLite / Python','从四类资源中筛选符合必备条件的候选项'],
+    ['05 方案初稿','Jinja2','列出场景、版型、选料和设计亮点'],['06 图纸与提示词','ezdxf / SVG / Jinja2','生成本版款式图和三组绘图提示词'],
+    ['07 版师复核','FastAPI / 版本库','版师签认图纸，或退回需求、尺寸修改'],['08 归档导出','SQLite / XlsxWriter','按已复核的版本导出台账和案例包'],
+    ['09 复盘复用','SQLite','向下一单带入已批准的检查项'],
   ];
   return headings('项目简介','海派定制顾问的应用场景、工作流程、技术与职责边界。',base+'/overview',`
-<section class="page-head"><span class="eyebrow">项目简介</span><h1>让设计选择有据可查</h1><p>为定制业务专员、职业服方案设计师和高级定制企划人员设计。用同一项目编号串起客户原话、资源、方案、图纸和归档版本。</p></section>
-<section class="editorial"><h2>服务两类订单</h2><div class="case-tiles"><article>${figure(illustration('jacquard.webp'),'低对比织花面料纹理','面料质感示意')}<h3>海派高端私定</h3><p>把正式程度、穿着松量与领型偏好转成可讨论的设计参数，保留主色与实物质感的待核项。</p><a href="${exampleUrl('atelier',1,1)}">体验私定案例 →</a></article>
-<article>${figure(illustration('concierge-detail.jpg'),'藏蓝斜纹夹克口袋细节','礼宾制服工艺参考')}<h3>团体职业服</h3><p>将岗位动作、统一配色、护理和补货需求带入版型与面料选择，再用试穿和样衣核实。</p><a href="${exampleUrl('concierge',1,1)}">体验团服案例 →</a></article></div></section>
-<section class="editorial"><h2>从六维需求到同版交付</h2><p>六个维度为风格调性、廓形要求、面料质感、工艺细节、色彩体系和场景适配度。模拟资源库收录 31 项版型、面料、工艺及历史案例。</p><div class="route-table" role="table" aria-label="指定技术栈与流程"><div class="route-row table-head" role="row"><strong role="columnheader">业务节点</strong><strong role="columnheader">技术组件</strong><strong role="columnheader">阶段输出</strong></div>${rows.map(row=>`<div class="route-row" role="row">${row.map(item=>`<span role="cell">${item}</span>`).join('')}</div>`).join('')}</div>
-<p class="fine">此表为 FastAPI 原生实现。公网业务工作台使用 Cloudflare Workers AI 和浏览器项目存储。公开案例体验使用固定虚构输入，不保存访问者数据。</p></section>
-<section class="editorial"><h2>一张订单交付什么</h2>
+<section class="page-head"><span class="eyebrow">项目简介</span><h1>定制订单怎样办理</h1><p>定制业务专员、职业服方案设计师和高级定制企划人员可按项目编号查看原话、选料、方案、图纸和归档版本。</p></section>
+<section class="editorial"><h2>两份模拟订单</h2><div class="case-tiles"><article>${figure(illustration('jacquard.webp'),'低对比织花面料纹理','面料质感示意')}<h3>海派高端私定</h3><p>客户把交领改为低立领。对照 V1 和 V3，查看新需求如何改变版型，怎样保留无扣开襟。</p><a href="${exampleUrl('atelier',1,1)}">查看私定订单 →</a></article>
+<article>${figure(illustration('concierge-detail.jpg'),'藏蓝斜纹夹克口袋细节','礼宾制服工艺参考')}<h3>团体职业服</h3><p>40 人礼宾团队需要可机洗的藏蓝夹克。查看门襟从 30 mm 改到 35 mm 后的图纸和归档记录。</p><a href="${exampleUrl('concierge',1,1)}">查看团服订单 →</a></article></div></section>
+<section class="editorial"><h2>办理流程与技术组件</h2><p>需求按风格调性、廓形要求、面料质感、工艺细节、色彩体系和场景适配度整理。资源库有 31 项模拟版型、面料、工艺和历史案例。</p><div class="route-table" role="table" aria-label="指定技术栈与流程"><div class="route-row table-head" role="row"><strong role="columnheader">业务节点</strong><strong role="columnheader">技术组件</strong><strong role="columnheader">阶段输出</strong></div>${rows.map(row=>`<div class="route-row" role="row">${row.map(item=>`<span role="cell">${item}</span>`).join('')}</div>`).join('')}</div>
+<p class="fine">表中列出 FastAPI 版的组件。线上业务工作台使用 Cloudflare Workers AI，项目保存在浏览器。免密案例可浏览固定模拟订单，不保存访客数据。</p></section>
+<section class="editorial"><h2>订单交付物</h2>
 <div class="route-table" role="table" aria-label="五类交付物">${[
- ['资产知识库','按标签、风格和场景检索四类资产，查看资源分类、适用场景与使用规范。'],
- ['需求解构','六维参数清单和情绪审美标签报告。每个有出处的判断可回看原话，缺少证据的字段交给顾问确认。'],
- ['方案初稿','整体参考方案、资源匹配理由与可行性提示。方案注明资产编号、硬性条件和待试穿项目。'],
- ['视觉需求包','成衣正背面、工艺特写、上身场景三组提示词及尺寸要求。同版提供 SVG 和毫米单位 DXF。'],
- ['业务台账','可编辑 XLSX 汇总项目、需求、方案、资源使用及复核记录。旧版本、退回原因和确认人可追溯。']
+ ['资产知识库','按标签、风格或场景查找版型、面料、工艺和历史案例，查看分类清单与使用规范。'],
+ ['需求解构','六维参数清单和情绪审美标签报告保留原话出处。没有依据的项目留给顾问确认。'],
+ ['方案初稿','初稿列出资产编号、选择理由和可行性提示，注明必须满足的条件和待试穿项目。'],
+ ['视觉需求包','提供成衣正背面、工艺特写和上身场景三组提示词及图像尺寸，附同版 SVG 与毫米单位 DXF 图纸。'],
+ ['业务台账','五张可编辑 XLSX 工作表汇总项目、需求、方案、资源使用和复核记录，可查旧版、退回原因与确认人。']
  ].map(([label,value])=>`<div class="route-row" role="row"><strong role="rowheader">${label}</strong><span role="cell" class="wide-cell">${value}</span></div>`).join('')}</div></section>
-<section class="editorial"><h2>落地路径与风险</h2><p>先用海派私定和礼宾职业服两张模拟订单核对输出，再由顾问、设计师和版师共同复核术语、搭配和图纸。业务试点前需另行取得素材授权，建立资源维护和人工审批制度。</p><p>视觉参考可能偏离真实面料与尺寸。改动领型、门襟或面料后，应回到对应节点生成新版，由版师复核，并通过实物色卡、样布及试穿确认。</p></section>
-<section class="editorial boundary"><h2>Agent 能力边界清单</h2><p>Agent 可以拆解需求、检索模拟资产、编写方案初稿、生成提示词和沟通用款式图，并整理台账。顾问确认硬要求与资源选择，版师复核尺寸和图纸；定制终审、版型定稿、报价、商务洽谈、签约及生产下单均由业务人员负责。</p><p>演示全部使用模拟资产。生产系统和真实定制业务接口均不在本次接入范围。</p><div class="actions"><a class="button solid" href="/design">进入案例体验</a><a class="button outline" href="${repo}/blob/main/docs/architecture.md">架构与接口说明</a></div></section>`);
+<section class="editorial"><h2>试点安排与风险</h2><p>先用两份模拟订单核对交付文件，由顾问、设计师和版师检查术语、搭配和图纸。进入试点前，需取得素材授权，明确资源维护和审批责任。</p><p>效果图不能确认实际尺寸和质感。更改领型、门襟或面料后须重新出图，请版师复核，再用色卡、样布和试穿确认。</p></section>
+<section class="editorial boundary"><h2>Agent 能力边界清单</h2><p>Agent 整理需求、检索模拟资源、起草方案、生成绘图提示词和款式图，并汇总台账。顾问确认必备条件和选料，版师复核尺寸与图纸。定制终审、版型定稿、报价、商务洽谈、签约和生产下单由业务人员负责。</p><p>演示只使用模拟资产，不连接生产系统或真实定制业务接口。</p><div class="actions"><a class="button solid" href="/design">查看模拟订单</a><a class="button outline" href="${repo}/blob/main/docs/architecture.md">架构与接口说明</a></div></section>`);
 }
 
 function video(url) {
@@ -174,18 +174,18 @@ function video(url) {
     {id:'intake',time:0,label:'录入酒店订单',clock:'00:00'},
     {id:'confirm',time:5.38,label:'对照客户原话',clock:'00:05'},
     {id:'assets',time:13,label:'选择可机洗面料',clock:'00:13'},
-    {id:'visual',time:22.5,label:'看成衣、袋口和上身',clock:'00:23'},
-    {id:'cad',time:28,label:'把门襟改宽五毫米',clock:'00:28'},
-    {id:'archive',time:35.53,label:'复核、存台账、开新单',clock:'00:36'}
+    {id:'visual',time:22.5,label:'查看成衣、袋口和上身图',clock:'00:23'},
+    {id:'cad',time:28,label:'门襟从 30 改为 35 毫米',clock:'00:28'},
+    {id:'archive',time:35.53,label:'复核归档并开新单',clock:'00:36'}
   ];
   const selected=chapters.find(c=>c.id===url.searchParams.get('chapter'));
   const offset=selected?'#t='+selected.time:'';
-  return headings('演示视频','观看海派定制顾问的完整模拟订单流程。',base+'/video',`
-<section class="page-head"><span class="eyebrow">操作演示</span><h1>一张酒店礼宾服订单</h1><p>45 秒，小米 MiMo 普通话配音，中英字幕。</p></section>
+  return headings('演示视频','观看礼宾夹克从需求录入到归档复用的过程。',base+'/video',`
+<section class="page-head"><span class="eyebrow">操作演示</span><h1>酒店礼宾服订单演示</h1><p>45 秒，小米 MiMo 普通话配音，中英字幕。</p></section>
 <section class="film" id="player" aria-label="作品演示播放器"><video controls playsinline preload="metadata" poster="${illustration('video-cover.jpg')}" aria-label="海派定制顾问项目演示">
 <source src="${videoUrl}${offset}" type="video/mp4"><source src="${releaseVideo}${offset}" type="video/mp4"><a href="${releaseVideo}">下载 MP4 演示视频</a></video>
 <nav class="film-links" aria-label="视频章节">${chapters.map(c=>`<a href="/design/video?chapter=${c.id}#player"${selected===c?' aria-current="true"':''}>${c.clock}　${c.label}</a>`).join('')}</nav>
-<div class="film-links"><a href="${videoUrl}" download>下载 MP4</a><a href="${releaseVideo}">GitHub 备用下载</a><a href="/design#case">体验模拟案例 →</a></div></section>`);
+<div class="film-links"><a href="${videoUrl}" download>下载 MP4</a><a href="${releaseVideo}">GitHub 备用下载</a><a href="/design#case">查看模拟订单 →</a></div></section>`);
 }
 
 function exportExample(key,version,format,followup) {

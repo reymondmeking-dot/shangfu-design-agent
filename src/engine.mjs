@@ -547,7 +547,7 @@ function hard(field) {
 
 function evaluateCode(actual, field, names) {
   if (!hard(field)) return null;
-  if (field.unrecognized || !field.codes?.length && !field.excluded?.length) return ["needsReview", field.label + "尚未形成可核验的库内条件"];
+  if (field.unrecognized || !field.codes?.length && !field.excluded?.length) return ["needsReview", field.label + "在资产卡里找不到对应记录"];
   if (actual == null || actual === "unknown") return ["needsReview", field.label + "缺少验证记录"];
   if (field.excluded?.includes(actual) || field.codes?.length && !field.codes.includes(actual)) {
     return ["rejected", (names[actual] ?? actual) + "不符合硬条件“" + field.value + "”"];
@@ -619,7 +619,7 @@ function evaluateEvidence(asset, field) {
   if (!hard(field)) return null;
   const groups = hardOptions(field.key, field.value);
   if (!groups.length || groups.some(group => group.some(option => !option.term))) {
-    return ["needsReview", field.label + "尚未形成可核验的库内条件：“" + field.value + "”"];
+    return ["needsReview", field.label + "在资产卡里找不到对应记录：“" + field.value + "”"];
   }
   let pending = false;
   for (const group of groups) {
@@ -728,15 +728,15 @@ export function matchResources({ requirements, scene } = {}) {
   const recommended = { pattern: null, fabric: null, craft: null, case: byType.case[0]?.id ?? null };
   const rawFields = Array.isArray(requirements) ? requirements : requirements?.fields;
   if (Array.isArray(rawFields) && rawFields.some(field => hard(field) && !Object.hasOwn(definitionByKey, field.key))) {
-    return { eligible, rejected, needsReview, recommended, blocked: true, reason: "存在未识别的硬要求字段，请顾问按已支持的设计维度复核。" };
+    return { eligible, rejected, needsReview, recommended, blocked: true, reason: "有一项硬要求无法匹配，请回到设计参数页核对。" };
   }
   const contradiction = [fields.collar, fields.care].find(field => field.conflict);
   if (fields.garmentScope?.value && /连衣裙|半身裙|西裤|长裤|衬衫|马甲|短裙|短裤/.test(fields.garmentScope.value)) {
     return {eligible,rejected,needsReview,recommended,blocked:true,reason:"本单交付品类为「"+fields.garmentScope.value+"」，模拟库只有外套、夹克和西装上衣基版。请确认分单范围或由版师补充其余单品基版。"};
   }
-  if (hard(fields.designDetail)) return {eligible,rejected,needsReview,recommended,blocked:true,reason:"指定纹样缺少已核验的花型样卡，请顾问先确认。"};
+  if (hard(fields.designDetail)) return {eligible,rejected,needsReview,recommended,blocked:true,reason:"还没有可核对的花型样卡，请先确认客户指定的纹样。"};
   if (contradiction) {
-    return { eligible, rejected, needsReview, recommended, blocked: true, reason: contradiction.label + "存在冲突，请先让顾问确认。" };
+    return { eligible, rejected, needsReview, recommended, blocked: true, reason: contradiction.label + "的要求有冲突，请和客户核对。" };
   }
   const placketLimit = parsePlacketRequest(fields.placketWidthRequest);
   if (hard(fields.placketWidthRequest) && (!placketLimit || placketLimit.min > 50 || placketLimit.max < 20)) {
@@ -748,12 +748,12 @@ export function matchResources({ requirements, scene } = {}) {
       const craft = byType.craft.find(item => !compatibility(pattern, fabric, item));
       if (!craft) continue;
       Object.assign(recommended, { pattern: pattern.id, fabric: fabric.id, craft: craft.id });
-      const reason = "已按硬要求筛选，并检查推荐组合的兼容性。" + (manualFit.length ? "量体和成衣尺寸目标须由业务人员复核。" : "");
+      const reason = "这组版型、面料和工艺符合已确认的硬要求，可以搭配使用。" + (manualFit.length ? "量体数据和成衣尺寸还要核对。" : "");
       return { eligible, rejected, needsReview, recommended, blocked: false, reason };
     }
   }
   const absent = !byType.pattern.length ? "版型" : !byType.fabric.length ? "面料" : "工艺";
-  return { eligible, rejected, needsReview, recommended, blocked: true, reason: "缺少已核验的" + absent + "组合，请调整要求或复核资产卡。" };
+  return { eligible, rejected, needsReview, recommended, blocked: true, reason: "还没有满足要求的" + absent + "组合。请先核对资产卡，需要改要求时再与客户确认。" };
 }
 
 function domainError(code, message) {
@@ -823,11 +823,11 @@ export function createSolution({ requirements, scene, selected, version = 1, pla
     ...(fitRequests.length ? [{ title: "尺寸交接与测量基准", body: fitRequests.map(item => item.label + "：" + item.value
       + (item.key === "placketWidthRequest" ? "（参考图纸为 " + width + " mm，版师复核）" : "（量体与试穿待核）")).join("。") + "。" }] : []),
     { title: "颜色与亮点", body: color + "。" + highlights.join("。") + "。" },
-    { title: "历史参考", body: reference ? "参考「" + reference.name + "」。" + reference.description : "本次暂无适用模拟案例。" },
+    { title: "历史参考", body: reference ? "参考「" + reference.name + "」。" + reference.description : "模拟案例库里暂时没有合适的参考。" },
   ];
   const checks = scene === "group"
-    ? ["结合岗位与原话确认各尺码试穿名单，核对站姿、伸手和搬运时的活动范围。", "确认各尺码、洗后色牢度及补货批次色差。", "实际护理标识需以样衣、面料及辅料测试为准。"]
-    : ["量体后核对肩点、袖窿、衣长与抬臂自由度。", "核对所选「" + fabric.name + "」的实物质感，以及「" + craft.name + "」与领口、门襟的组合。", "门襟毫米数是模拟基版测点，正式尺寸由版师确认。"];
+    ? ["按尺码安排试穿，请穿着者试试站立、伸手和搬运时是否方便。", "核对尺码和洗后色牢度，补货时比对批次色差。", "实际护理标识需以样衣、面料及辅料测试为准。"]
+    : ["量体后核对肩点、袖窿和衣长，试穿时看看抬臂是否受限。", "核对所选「" + fabric.name + "」的实物质感，以及「" + craft.name + "」与领口、门襟的组合。", "门襟毫米数是模拟基版测点，正式尺寸由版师确认。"];
   if (craft.id === "TEC-009") checks.push("此组合使用无扣开襟与侧衩挡布。对照样衣复核襟缘掩合、贴边宽与侧衩位置。");
   const reusedChecks = Array.isArray(requirements?.reusedChecks)
     ? [...new Set(requirements.reusedChecks
@@ -843,18 +843,18 @@ export function createSolution({ requirements, scene, selected, version = 1, pla
     for (const [assetId,note] of Object.entries(source.assetReferences)) {
       const originalAsset = catalog.find(item=>item.id===assetId);
       if (originalAsset && originalAsset.type !== "case" && chosen[originalAsset.type] !== assetId) {
-        preferences.push("本版未采用模拟案例提示的候选 "+assetId+"（"+note+"）。请顾问核对本版选择。");
+        preferences.push("本版未采用模拟案例提示的候选 "+assetId+"（"+note+"）。请核对这次选用的资源。");
       }
     }
   }
-  if (fields.designDetail?.value) preferences.push("将客户提出的纹样或地域偏好「"+fields.designDetail.value+"」与样布和设计稿核对，再确认具体图案。");
+  if (fields.designDetail?.value) preferences.push("把客户提出的纹样或地域风格「"+fields.designDetail.value+"」与样布、设计稿对照，再定具体图案。");
   if (!visualColor.catalogEvidence) preferences.push("对照实物色卡和染色批次确认主色，视觉色值用于方案沟通。");
   return {
     id: "SOL-" + globalThis.crypto.randomUUID(),
     version, scene, title: planTitle, selected: chosen, assets,
     sourceText: typeof requirements?.sourceText === "string" ? requirements.sourceText.slice(0, 4200) : "",
     summary: pattern.name + " × " + fabric.name + " × " + craft.name,
-    sections, checks: [...checks, ...preferences, ...fitReview.map(item => "人工复核「" + item.label + " " + item.value + "」的量体口径与样衣结果。"), ...reusedChecks.map(item => "复用检查项：" + item)], reusedChecks, requirements: Object.values(fields), color,
+    sections, checks: [...checks, ...preferences, ...fitReview.map(item => "人工复核「" + item.label + " " + item.value + "」的测量方法和试穿结果。"), ...reusedChecks.map(item => "复用检查项：" + item)], reusedChecks, requirements: Object.values(fields), color,
     cad: {
       units: "mm", collar: pattern.collar, collarLabel: collarNames[pattern.collar],
       placketWidth: width, placketWidthMm: width, garmentLength: scene === "group" ? 690 : 720,
