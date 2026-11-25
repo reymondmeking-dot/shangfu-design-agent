@@ -4,7 +4,9 @@
 
 适用于定制业务专员、职业服方案设计师和高级定制企划人员。公开源码配有 31 项模拟资产和两个独立编写的虚构项目。正式洽谈记录、个人量体数据和生产系统均在演示范围之外。
 
-[在线演示](https://planto-ai.com/design) ｜ [在线项目简介](https://planto-ai.com/design/overview) ｜ [技术路线、业务边界与接口](docs/architecture.md)
+[观看 1 分 44 秒演示](https://planto-ai.com/design/video) ｜ [在线演示](https://planto-ai.com/design) ｜ [在线项目简介](https://planto-ai.com/design/overview) ｜ [技术路线、业务边界与接口](docs/architecture.md)
+
+影片使用小米 MiMo TTS 普通话配音和中英字幕。片中使用两张模拟订单演示交领改低立领、门襟从 30 mm 改到 35 mm，以及获批的试穿检查进入下一单。[下载 1080p MP4](https://github.com/reymondmeking-dot/shangfu-design-agent/releases/download/v1.0.0/shangfu-design-agent-demo.mp4)
 
 ## 运行工作台
 
