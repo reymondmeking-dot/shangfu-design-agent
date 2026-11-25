@@ -7,7 +7,7 @@ const repo = 'https://github.com/reymondmeking-dot/shangfu-design-agent';
 const releaseVideo = repo + '/releases/latest/download/shangfu-design-agent-demo.mp4';
 const videoPath = base + '/media/shangfu-design-agent-demo.mp4';
 // Refresh these values together with the public MP4 so viewers get its new cache key.
-const videoRelease = { bytes:18858004, revision:'c9189917498d' };
+const videoRelease = { bytes:16836934, revision:'342443558dbc' };
 const videoUrl = videoPath + '?v=' + videoRelease.revision;
 const csp = "default-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'none'; style-src 'self'; img-src 'self'; media-src 'self' https://github.com https://release-assets.githubusercontent.com https://objects.githubusercontent.com";
 const steps = ['需求录入','需求解构','人工确认','资源匹配','方案初稿','图纸与提示词','版师复核','归档导出','复盘复用'];
@@ -171,16 +171,17 @@ function overview() {
 
 function video(url) {
   const chapters = [
-    {id:'intake',time:7.87,label:'原话与六维参数',clock:'00:08'},
-    {id:'assets',time:24.60,label:'资源匹配与方案',clock:'00:25'},
-    {id:'visual',time:41.30,label:'技术图与改领',clock:'00:41'},
-    {id:'cad',time:66.17,label:'30 到 35 毫米',clock:'01:06'},
-    {id:'archive',time:74.37,label:'复核、台账与复用',clock:'01:14'}
+    {id:'intake',time:0,label:'录入酒店订单',clock:'00:00'},
+    {id:'confirm',time:5.38,label:'对照客户原话',clock:'00:05'},
+    {id:'assets',time:13,label:'选择可机洗面料',clock:'00:13'},
+    {id:'visual',time:22.5,label:'看成衣、袋口和上身',clock:'00:23'},
+    {id:'cad',time:28,label:'把门襟改宽五毫米',clock:'00:28'},
+    {id:'archive',time:35.53,label:'复核、存台账、开新单',clock:'00:36'}
   ];
   const selected=chapters.find(c=>c.id===url.searchParams.get('chapter'));
   const offset=selected?'#t='+selected.time:'';
   return headings('演示视频','观看海派定制顾问的完整模拟订单流程。',base+'/video',`
-<section class="page-head"><span class="eyebrow">演示视频</span><h1>从需求录入到归档复用</h1><p>1 分 44 秒，小米 MiMo 普通话配音，中英字幕。</p></section>
+<section class="page-head"><span class="eyebrow">操作演示</span><h1>一张酒店礼宾服订单</h1><p>45 秒，小米 MiMo 普通话配音，中英字幕。</p></section>
 <section class="film" id="player" aria-label="作品演示播放器"><video controls playsinline preload="metadata" poster="${illustration('video-cover.jpg')}" aria-label="海派定制顾问项目演示">
 <source src="${videoUrl}${offset}" type="video/mp4"><source src="${releaseVideo}${offset}" type="video/mp4"><a href="${releaseVideo}">下载 MP4 演示视频</a></video>
 <nav class="film-links" aria-label="视频章节">${chapters.map(c=>`<a href="/design/video?chapter=${c.id}#player"${selected===c?' aria-current="true"':''}>${c.clock}　${c.label}</a>`).join('')}</nav>
