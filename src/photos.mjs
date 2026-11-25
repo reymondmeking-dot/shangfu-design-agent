@@ -15,6 +15,7 @@ const maxImageBytes = 2 * 1024 * 1024;
 const signatureScheme = 'design-agent-photos/v1';
 const reviewCandidates = [
   { id: 'group-v1', scene: 'group', version: 1, text: demoCases[1].text,
+    archivedFieldsSha256: 'c962d9c69b6be54efd202f12dbc2ab9a39a5fa34bb43059ac6adca38d20f88c4',
     selected: ['PAT-004','FAB-003','TEC-004','CAS-004'], color: '深藏蓝',
     cad: ['lapel','西装翻驳领',30,690,470,585] },
 ];
@@ -36,16 +37,18 @@ const baselineFields = reviewCandidates.map(candidate => {
   }
   return fieldIdentity(requirements);
 });
-function findReviewedCase(solution, sourceText) {
+async function findReviewedCase(solution, sourceText) {
   const tuple = assetTypes.map(type => solution.selected[type] || null);
   const cad = solution.cad;
   if (cad.units !== 'mm' || ![legacyTemplate,catalogVersion].includes(cad.templateVersion) || (cad.placketWidthMm != null && cad.placketWidthMm !== cad.placketWidth)) return null;
   const dimensions = [cad.collar,cad.collarLabel,cad.placketWidth,cad.garmentLength,cad.shoulderWidth,cad.sleeveLength];
   const raw = normalizeOriginal(solution.sourceText || sourceText);
+  const fields = fieldIdentity(solution.requirements);
+  const archivedHash = solution.scene === 'group' ? await sha(encoder.encode(JSON.stringify(fields))) : null;
   return reviewCandidates.find((candidate,index) => candidate.scene === solution.scene && candidate.version === solution.version
     && (candidate.scene === 'group' || cad.templateVersion === (candidate.legacy ? legacyTemplate : catalogVersion))
     && normalizeOriginal(candidate.text) === raw && same(candidate.selected,tuple) && candidate.color === solution.color
-    && same(candidate.cad,dimensions) && same(fieldIdentity(solution.requirements),baselineFields[index]));
+    && same(candidate.cad,dimensions) && (same(fields,baselineFields[index]) || candidate.archivedFieldsSha256 === archivedHash));
 }
 const error = (status, code, message) => Object.assign(new Error(message), {status,code,expose:true});
 function view(key) {
@@ -60,7 +63,7 @@ async function staticAsset(env, origin, name) {
 export async function getPhotoSet(solution, env, origin, sourceText, includeBytes=false, requiredView=null) {
   const common = {solutionId:solution.id,version:solution.version};
   const empty = {...common,mode:'generate',images:[]};
-  const candidate = findReviewedCase(solution,sourceText);
+  const candidate = await findReviewedCase(solution,sourceText);
   if (!candidate || !env.ASSETS) return empty;
   const res = await staticAsset(env,origin,'photo-reviews.json');
   if (res.status === 404) return empty;
@@ -91,7 +94,7 @@ async function revisionReference(solution,key,env,origin) {
     const baseline = {...solution,sourceText:c.text,version:c.version,
       requirements:solution.requirements.filter(f=>f.key !== 'placketWidthRequest'),
       cad:{...solution.cad,placketWidth:c.cad[2],placketWidthMm:c.cad[2]}};
-    if (findReviewedCase(baseline) !== c) continue;
+    if (await findReviewedCase(baseline) !== c) continue;
     const reviewed = await getPhotoSet(baseline,env,origin,c.text,true,key);
     return reviewed.images.find(image=>image.key===key) ?? null;
   }

@@ -16,6 +16,53 @@ const env = {ASSETS:{async fetch(request) {
 }}};
 const expectedViews = [['garment',1500,1000],['detail',1200,1200],['on-body',1200,1500]];
 
+test('原已核图职业服可读取历史快照，修改原有字段后须重新出图', async () => {
+  const original=demoCases[1], requirements=extractRequirements(original);
+  const solution=createSolution({requirements,scene:'group',title:original.title});
+  const byKey=Object.fromEntries(solution.requirements.map(field=>[field.key,field]));
+  Object.assign(byKey.scene,{value:'酒店礼宾',evidence:'云汀会馆有40名礼宾员 ｜ 大家轮岗接待、抬手递物'});
+  Object.assign(byKey.activity,{value:'抬臂舒展、搬运行李、久站活动',evidence:'大家轮岗接待、抬手递物 ｜ 也要搬运行李'});
+  Object.assign(byKey.fabric,{value:'耐用易护理',source:'customer',level:'required',evidence:'必须可机洗'});
+  const assets={ASSETS:{fetch:async req=>new Response(await readFile(new URL('../public'+new URL(req.url).pathname,import.meta.url)))}};
+  assert.equal((await getPhotoSet(solution,assets,'http://localhost',original.text)).mode,'reviewed');
+  byKey.activity.value='坐姿舒适';
+  assert.equal((await getPhotoSet(solution,assets,'http://localhost',original.text)).mode,'generate');
+});
+
+test('展馆与酒店按客户原话分开记录场地、动作和护理方式', () => {
+  const exhibition = '虚构海湾展馆有12名接待员，要定制职业服夹克。主色深藏蓝。护理要求必须可机洗。岗位在馆内接待，抬手取资料。希望商务利落。';
+  const hotel = '酒店礼宾团队轮流在室内接待、室外迎宾。工作时抬手搬运行李，也会长时间站立。夹克要深藏蓝，必须可机洗，面料希望耐磨。';
+  for (const [text,expected] of [[exhibition,{venue:'馆内接待',motion:'抬手取资料'}],[hotel,{venue:'酒店礼宾',motion:'抬手搬运行李'}]]) {
+    const requirements=extractRequirements({text,scene:'group'});
+    const f=Object.fromEntries(requirements.fields.map(field=>[field.key,field]));
+    assert.equal(f.scene.source,'customer');
+    assert.ok(f.scene.value.includes(expected.venue));
+    assert.ok(f.activity.evidence.includes(expected.motion));
+    for (const key of ['scene','activity','care']) assert.ok(f[key].evidence.split(' ｜ ').every(quote=>text.includes(quote)));
+    assert.deepEqual([f.care.value,f.care.source,f.care.level],['可机洗','customer','required']);
+    const match=matchResources({requirements,scene:'group'});
+    assert.equal(match.blocked,false);
+    assert.equal(match.recommended.fabric,'FAB-003');
+    if (text===exhibition) {
+      assert.doesNotMatch(f.scene.value,/酒店|迎宾/);
+      assert.equal(f.activity.value,'抬臂舒展');
+      assert.deepEqual([f.fabric.value,f.fabric.level,f.fabric.source],['','unspecified','pending']);
+      assert.equal(f.wearers.value,'接待员');
+      const solution=createSolution({requirements,scene:'group',title:'展馆职业服'});
+      const visual=makeVisualBrief(solution).parameters;
+      assert.equal(visual.environment,f.scene.value);
+      assert.equal(visual.activity,f.activity.value);
+    } else {
+      assert.match(f.activity.value,/久站活动/);
+      assert.ok(f.activity.evidence.includes('长时间站立'));
+      assert.deepEqual([f.fabric.value,f.fabric.source],['耐磨','customer']);
+    }
+  }
+  const standing=extractRequirements({scene:'group',text:'前台站立接待，面料必须可机洗。'}).fields;
+  assert.equal(standing.find(f=>f.key==='activity').value,'站立');
+  assert.equal(standing.find(f=>f.key==='fabric').source,'pending');
+});
+
 for (const sample of demoCases) {
   test(sample.title, async () => {
     const requirements=extractRequirements(sample);

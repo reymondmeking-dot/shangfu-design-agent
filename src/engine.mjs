@@ -93,7 +93,8 @@ const vocab = {
     ["纯羊毛", /纯羊毛|全羊毛|100\s*[%％]\s*羊毛/], ["羊毛", /羊毛|毛料/], ["棉混纺", /棉混纺/], ["棉", /棉纤维|棉料|棉质|棉布|棉/],
     ["亚麻", /亚麻/], ["羊绒", /羊绒/], ["皮革", /皮革|牛皮|羊皮/], ["有垂感", /垂感|垂坠/],
     ["轻薄透气", /轻薄|透气/], ["柔软", /柔软|手感柔和/], ["哑光", /哑光|低光泽/],
-    ["肌理", /肌理|纹理/], ["有质感", /质感|手感/], ["耐用易护理", /耐用|耐磨|耐洗|机洗|抗皱/],
+    ["肌理", /肌理|纹理/], ["有质感", /质感|手感/], ["耐用易护理", /耐用易护理/],
+    ["耐用", /耐用/], ["耐磨", /耐磨/], ["耐洗", /耐洗/], ["抗皱", /抗皱/], ["易护理", /易护理|好打理/],
   ],
   craft: [
     ["无扣开襟", /无扣(?:件|开襟)?|不(?:设|装)(?:任何)?扣件|不要任何(?:纽扣|扣子|扣件)/], ["一体式贴边", /一体式贴边/],
@@ -114,12 +115,16 @@ const vocab = {
   scene: [
     ["正式场合", /正式|典礼|宴会|颁奖|重要场合/], ["办公室商务", /办公室|通勤|办公场景|职场穿着/],
     ["室内接待", /室内(?:[^，。；、！？]{0,4})接待/], ["室外迎宾", /(?:室外|户外)(?:[^，。；、！？]{0,4})迎宾/],
-    ["酒店礼宾", /礼宾|酒店迎宾|迎宾|接待|前台/], ["户外使用", /户外|室外/], ["演出上镜", /舞台|上镜|演出|演奏/],
+    ["酒店礼宾", /(?:酒店|宾馆)(?:的)?礼宾/], ["酒店", /酒店|宾馆/],
+    ["展馆", /展览馆|展馆/], ["会馆", /会馆/], ["馆内接待", /馆内(?:现场)?接待/],
+    ["礼宾", /礼宾/], ["接待", /接待(?!员|人员)/], ["迎宾", /迎宾/], ["前台", /前台/],
+    ["户外使用", /户外|室外/], ["演出上镜", /舞台|上镜|演出|演奏/],
     ["日常休闲", /日常(?:休闲|生活|出游|穿着|穿搭|穿)|休闲|旅行/],
   ],
   activity: [
-    ["抬臂舒展", /抬臂|抬手|不卡手臂|压肩|搬运行李|搬行李|肩部舒展/],
-    ["搬运行李", /搬运行李|搬行李/], ["久站活动", /站立|久站|迎宾|接待/], ["坐姿舒适", /久坐|坐奏|坐姿/], ["腰腹宽松", /腰腹|腹部|肚腩/],
+    ["抬臂舒展", /抬臂|抬手|不卡手臂|压肩|肩部舒展/],
+    ["搬运行李", /搬运行李|搬行李/], ["久站活动", /久站|长时间站立|长期站立/], ["站立", /站立/],
+    ["坐姿舒适", /久坐|坐奏|坐姿/], ["腰腹宽松", /腰腹|腹部|肚腩/],
   ],
 };
 
@@ -189,7 +194,9 @@ function detectVocabulary(text, key, includeNegated = false) {
     key === "color" && other.quote.length > item.quote.length && other.index < item.index + item.quote.length && item.index < other.index + other.quote.length ||
     other.quote.length > item.quote.length && other.index <= item.index &&
     other.index + other.quote.length >= item.index + item.quote.length && (
-      key === "fabric" && (item.value === "羊毛" && other.value === "纯羊毛" || item.value === "棉" && other.value === "棉混纺") ||
+      key === "fabric" && (item.value === "羊毛" && other.value === "纯羊毛" || item.value === "棉" && other.value === "棉混纺" || other.value === "耐用易护理") ||
+      key === "scene" && ["酒店","礼宾","接待","迎宾","前台"].includes(item.value) ||
+      key === "activity" && item.value === "站立" ||
       key === "craft" && item.value === "盘扣" && other.value === "手工盘扣" ||
       key === "craft" && item.value === "绣标" && other.value === "机绣标识"
     )
@@ -267,7 +274,6 @@ const suggestedValues = {
     silhouette: "直身夹克，配合可活动袖窿",
     fabric: "挺而不硬、耐用、易护理",
     craft: "低可见度加固",
-    scene: "团队接待与岗位活动",
     activity: "试穿检查伸手和抬臂",
   },
 };
@@ -302,14 +308,17 @@ function assertiveField(text, key, matches) {
     const active = matches.filter(item => item.clause === clause);
     const stated = active.filter(item => {
       if (item.negated) return true;
-      if (key === "activity" && item.value === "久站活动" && /迎宾|接待/.test(item.quote)) return false;
       if (!isExplicit(clause)) return false;
       const request = clause.search(/需要|要求/u);
       return request < 0 || clause.indexOf(item.quote) >= request || /必须|只(?:能|用)|不得|不能|务必|统一|禁止|一定要/u.test(clause) ||
         /(?:是)?(?:需要|要求)(?:的)?$/u.test(clause);
     });
     if (explicit) {
-      const scoped = explicit[1].replace(/^\s*(?:使用|采用|选用|为|用|是)/, "").trim();
+      let scoped = explicit[1].replace(/^\s*(?:使用|采用|选用|为|用|是)/, "").trim();
+      if (key === "fabric") {
+        scoped = scoped.replace(/(?:可(?:以)?|能|适合|支持)?(?:洗衣机洗|机洗|干洗|手洗)/gu, "").replace(/^[、和与或\s]+|[、和与或\s]+$/gu, "");
+        if (!scoped) continue;
+      }
       const unknown = scoped.split(/(?:、|或者|或是|或|以及|与|和)/).map(part => part.trim())
         .filter(part => part && !stated.some(item => item.quote.includes(part)) && !detectVocabulary(part, key, true).length);
       if (!stated.length || unknown.length || /含量|克重|[%％]/.test(scoped) && !/100\s*[%％]\s*羊毛/.test(scoped)) {
@@ -335,7 +344,7 @@ function groupField(key, text) {
     if (count) return defineField(key, count[0].trim(), "preferred", "customer", count[0].trim());
   }
   if (key === "wearers") {
-    const roles = [...new Set((text.match(/礼宾(?:团队|人员|岗)?|前台(?:团队|人员|岗)?|接待人员|迎宾人员|行政团队|服务团队|物业团队|安保团队|办公室员工|销售团队|演出团队|厨师|保洁人员/g) ?? []))];
+    const roles = [...new Set((text.match(/礼宾(?:团队|人员|岗)?|前台(?:团队|人员|岗)?|接待人员|接待员|迎宾人员|行政团队|服务团队|物业团队|安保团队|办公室员工|销售团队|演出团队|厨师|保洁人员/g) ?? []))];
     if (roles.length) return defineField(key, roles.join("、"), "preferred", "customer", roles.join(" ｜ "));
   }
   if (key === "replenishment") {
@@ -449,6 +458,7 @@ export function extractRequirements({ text = "", scene } = {}) {
       const clauses = [...new Set(matches.map(item => item.clause))];
       return defineField(key, [...new Set(matches.map(item => item.value))].join("、"), "preferred", "customer", clauses.join(" ｜ "));
     }
+    if (key === "fabric" && text.search(careExpression) >= 0) return defineField(key, "", "unspecified", "pending");
     if (suggestions[key]) return defineField(key, suggestions[key], "preferred", "agent");
     return defineField(key, key === "color" ? "未指定" : "", "unspecified", "pending");
   });
@@ -596,9 +606,13 @@ function evidenceStatus(asset, key, term) {
     const material = fabricMaterialEvidence[asset.id];
     return material == null ? "unknown" : term === material || term === "棉" && material === "棉混纺" ? "yes" : "no";
   }
-  if (key === "scene") return patternSceneEvidence[asset.id]?.includes(term) ? "yes" : "unknown";
+  if (key === "scene") {
+    const resourceTerm = { "馆内接待":"室内接待", "接待":"室内接待", "迎宾":"室外迎宾", "礼宾":"酒店礼宾" }[term] ?? term;
+    return patternSceneEvidence[asset.id]?.includes(resourceTerm) ? "yes" : "unknown";
+  }
   const nameAndTags = [asset.name, ...asset.tags].join("、");
   const recorded = new Set(detectVocabulary(nameAndTags, key).map(item => item.value));
+  if (key === "fabric" && term === "耐用易护理" && (recorded.has("耐用") || recorded.has("耐磨")) && recorded.has("易护理")) return "yes";
   if (recorded.has(term) || term === "盘扣" && recorded.has("手工盘扣") || term === "绣标" && recorded.has("机绣标识")) return "yes";
   if (key === "craft") return "no";
   return "unknown";
@@ -826,8 +840,8 @@ export function createSolution({ requirements, scene, selected, version = 1, pla
   const color = visualColor.status === "pending"
     ? (visualColor.request ? "颜色要求「" + visualColor.request + "」待核" : "色彩未指定") + (visualColor.hex ? "，暂以" + visualColor.value + "示意" : "")
     : visualColor.value;
-  const use = scene === "group" ? "团队接待、迎宾及岗位活动" : "正式私定场合";
-  const planTitle = cleanText(title).slice(0, 120) || (scene === "group" ? "礼宾职业服方案" : "海派定制外套方案");
+  const use = scene === "group" ? "岗位场景待确认" : "正式私定场合";
+  const planTitle = cleanText(title).slice(0, 120) || (scene === "group" ? "团体职业服方案" : "海派定制外套方案");
   const contextualValue = key => fields[key]?.level !== "unspecified" ? fields[key]?.value : "";
   const count = scene === "group" && contextualValue("headcount");
   const wearers = scene === "group" && contextualValue("wearers");

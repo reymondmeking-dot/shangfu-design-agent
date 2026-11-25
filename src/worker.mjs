@@ -17,7 +17,7 @@ import { accessGuard } from './auth.mjs';
 
 import { showcase } from './showcase.mjs';
 const root = '/design-agent';
-const revision = '20261125.12.4';
+const revision = '20261125.12.5';
 const responseHeaders = {
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
