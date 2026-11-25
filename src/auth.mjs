@@ -6,6 +6,7 @@ const encoder = new TextEncoder();
 const recent = new Map();
 
 export function protectedDeployment(env) {
+  if (env.REQUIRE_PASSWORD === '0') return false;
   return env.REQUIRE_PASSWORD === '1' || Boolean(env.ACCESS_PASSWORD_HASH);
 }
 
@@ -122,9 +123,12 @@ function sameOriginForm(request,origin) {
     (submittedOrigin === 'null' && site === 'same-origin');
 }
 export async function accessGuard(request,env) {
-  if (!protectedDeployment(env)) return null;
   const {pathname,origin} = new URL(request.url);
   if (pathname !== basePath && !pathname.startsWith(basePath+'/')) return null;
+  if (!protectedDeployment(env)) {
+    if (pathname === basePath+'/unlock' || pathname === basePath+'/logout') return redirect(basePath);
+    return null;
+  }
   if (pathname === palettePath && (request.method === 'GET' || request.method === 'HEAD')) return null;
   const isApi = pathname === basePath+'/api' || pathname.startsWith(basePath+'/api/');
   if (!/^[0-9a-f]{64}$/.test(env.ACCESS_PASSWORD_HASH??'') || (env.SESSION_SECRET?.length??0)<32) {
