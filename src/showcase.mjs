@@ -6,6 +6,9 @@ const base = '/design';
 const repo = 'https://github.com/reymondmeking-dot/shangfu-design-agent';
 const releaseVideo = repo + '/releases/latest/download/shangfu-design-agent-demo.mp4';
 const videoPath = base + '/media/shangfu-design-agent-demo.mp4';
+// Refresh these values together with the public MP4 so viewers get its new cache key.
+const videoRelease = { bytes:18858004, revision:'c9189917498d' };
+const videoUrl = videoPath + '?v=' + videoRelease.revision;
 const csp = "default-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'none'; style-src 'self'; img-src 'self'; media-src 'self' https://github.com https://release-assets.githubusercontent.com https://objects.githubusercontent.com";
 const steps = ['需求录入','需求解构','人工确认','资源匹配','方案初稿','图纸与提示词','版师复核','归档导出','复盘复用'];
 const cases = {
@@ -36,7 +39,7 @@ const assets = new Map([
 ]);
 const escape = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const illustration = key => base+'/assets/'+key;
-const exampleUrl = (key,step,version,followup=false) => base+'?case='+key+'&amp;step='+step+'&amp;v='+version+(followup?'&amp;followup=1':'')+'#case';
+const exampleUrl = (key,step,version,followup=false) => base+'/?case='+key+'&amp;step='+step+'&amp;v='+version+(followup?'&amp;followup=1':'')+'#case';
 const exampleFile = (key,version,format,followup=false) => base+'/examples/'+key+'/v'+version+'.'+format+(followup?'?followup=1':'');
 const sourceLabels = {customer:'客户原话',advisor:'顾问确认',agent:'方案建议',pending:'待确认'};
 const typeLabels = {pattern:'版型',fabric:'面料',craft:'工艺',case:'历史参考'};
@@ -179,9 +182,9 @@ function video(url) {
   return headings('演示视频','观看海派定制顾问的完整模拟订单流程。',base+'/video',`
 <section class="page-head"><span class="eyebrow">演示视频</span><h1>从需求录入到归档复用</h1><p>1 分 44 秒，小米 MiMo 普通话配音，中英字幕。</p></section>
 <section class="film" id="player" aria-label="作品演示播放器"><video controls playsinline preload="metadata" poster="${illustration('video-cover.jpg')}" aria-label="海派定制顾问项目演示">
-<source src="${videoPath}${offset}" type="video/mp4"><source src="${releaseVideo}${offset}" type="video/mp4"><a href="${releaseVideo}">下载 MP4 演示视频</a></video>
+<source src="${videoUrl}${offset}" type="video/mp4"><source src="${releaseVideo}${offset}" type="video/mp4"><a href="${releaseVideo}">下载 MP4 演示视频</a></video>
 <nav class="film-links" aria-label="视频章节">${chapters.map(c=>`<a href="/design/video?chapter=${c.id}#player"${selected===c?' aria-current="true"':''}>${c.clock}　${c.label}</a>`).join('')}</nav>
-<div class="film-links"><a href="${videoPath}" download>下载 MP4</a><a href="${releaseVideo}">GitHub 备用下载</a><a href="/design#case">体验模拟案例 →</a></div></section>`);
+<div class="film-links"><a href="${videoUrl}" download>下载 MP4</a><a href="${releaseVideo}">GitHub 备用下载</a><a href="/design#case">体验模拟案例 →</a></div></section>`);
 }
 
 function exportExample(key,version,format,followup) {
@@ -238,7 +241,7 @@ function exportExample(key,version,format,followup) {
 }
 
 function rangedFallback(upstream,request) {
-  const total=Number(upstream.headers.get('content-length'));
+  const total=Number(upstream.headers.get('content-length')) || videoRelease.bytes;
   const range=request.headers.get('range');
   if(upstream.status!==200||!range||!Number.isSafeInteger(total)||total<=0||upstream.headers.get('content-encoding'))return upstream;
   const ifRange=request.headers.get('if-range');
@@ -276,13 +279,27 @@ function rangedFallback(upstream,request) {
 async function publishedAsset(request,env,path,media=false) {
   const target=new URL(request.url);target.pathname=path;target.search='';
   const pass=new Headers();
+  if(media)pass.set('Accept-Encoding','identity');
   for(const name of ['if-none-match','if-modified-since',...(media?['range','if-range']:[])]){
     if(request.headers.has(name))pass.set(name,request.headers.get(name));
   }
   const asset=await env.ASSETS.fetch(new Request(target,{method:request.method,headers:pass}));
   const result=media?rangedFallback(asset,request):asset;
   const headers=new Headers(result.headers);
-  if(media && result.ok){headers.set('Content-Type','video/mp4');headers.set('Accept-Ranges','bytes');}
+  if(media && result.ok){
+    headers.set('Content-Type','video/mp4');
+    headers.set('Accept-Ranges','bytes');
+    const bytes=Number(headers.get('Content-Length')) || (result.status===200 ? videoRelease.bytes : 0);
+    if(bytes && !headers.has('Content-Encoding')){
+      headers.set('Content-Length',String(bytes));
+      // A Worker streaming a full response must expose its length to the edge range cache.
+      if(result.body && typeof FixedLengthStream!=='undefined'){
+        const fixed=new FixedLengthStream(bytes);
+        void result.body.pipeTo(fixed.writable).catch(()=>{});
+        return new Response(fixed.readable,{status:result.status,headers});
+      }
+    }
+  }
   return new Response(result.body,{status:result.status,headers});
 }
 
@@ -307,6 +324,7 @@ export async function showcase(request,env) {
   const headers=new Headers(res.headers);
   headers.set('Content-Security-Policy',csp);headers.set('X-Content-Type-Options','nosniff');
   headers.set('Referrer-Policy','strict-origin-when-cross-origin');
-  headers.set('Cache-Control',res.ok?'public, no-cache':'no-store');
+  const cacheableFilm=path===videoPath && (res.ok || res.status===304);
+  headers.set('Cache-Control',cacheableFilm?'public, max-age=3600, s-maxage=86400, no-transform':res.ok?'public, no-cache':'no-store');
   return new Response(request.method==='HEAD'?null:res.body,{status:res.status,headers});
 }
