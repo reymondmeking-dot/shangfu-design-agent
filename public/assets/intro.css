@@ -1,0 +1,37 @@
+:root { --atelier-intro-enabled: 1; }
+
+.atelier-intro {
+  position: fixed; inset: 0; z-index: 100;
+  display: grid; place-items: center; overflow: hidden; pointer-events: none;
+  color: var(--sand-1); background: var(--teal-12);
+  animation: atelier-intro-exit 250ms ease-out 400ms both;
+}
+.atelier-intro-stage {
+  width: min(84%, 760px);
+  display: grid; grid-template-columns: minmax(240px, 1fr) minmax(0, 1fr);
+  gap: clamp(12px, 3vw, 42px); align-items: center;
+}
+.atelier-intro-wordmark { min-width: 0; display: grid; gap: 16px; }
+.atelier-intro-group { display: grid; width: min(48vw, 152px); min-height: 40px; align-items: center; }
+.atelier-intro-group img { width: 100%; height: auto; }
+.atelier-intro-group span { font-size: var(--text-body); font-weight: 700; }
+.atelier-intro-title { display: block; font: 650 var(--text-title)/1.2 var(--serif); white-space: nowrap; }
+.atelier-intro-pattern { min-width: 0; display: block; width: 100%; height: auto; aspect-ratio: 420 / 320; }
+
+@keyframes atelier-intro-exit {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@media (max-width: 650px) {
+  .atelier-intro-stage { width: min(86%, 400px); grid-template-columns: minmax(0, 1fr); gap: 10px; justify-items: center; text-align: center; }
+  .atelier-intro-group { margin-inline: auto; }
+  .atelier-intro-pattern { width: min(75vw, 270px); }
+}
+@media (max-height: 410px) and (max-width: 650px) {
+  .atelier-intro-pattern { width: min(53vw, 205px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --atelier-intro-enabled: 0; }
+  .atelier-intro { display: none; }
+}

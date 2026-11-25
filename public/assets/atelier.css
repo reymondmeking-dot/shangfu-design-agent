@@ -1,0 +1,58 @@
+.atelier-sample-board .panel-header { margin-bottom: 12px; }
+.atelier-sample-board .button-quiet { min-height: 34px; padding: 5px 8px; font-size: var(--text-small); }
+.atelier-sample-grid { display: grid; gap: 8px; }
+.atelier-swatch {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  border: var(--hairline) solid var(--line);
+  border-radius: var(--control-radius);
+  background: var(--paper);
+}
+.atelier-swatch-image { aspect-ratio: 3.1; background: var(--sand-4); overflow: hidden; }
+.atelier-swatch-image.jacquard { background: var(--teal); }
+.atelier-swatch-image.twill { background: var(--ink); }
+.atelier-swatch-image.stitch { background: var(--sand-10); }
+.atelier-swatch img { width: 100%; height: 100%; object-fit: cover; object-position: center; }
+.atelier-swatch figcaption {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 3px 8px;
+  padding: 6px 9px; color: var(--muted); font-size: var(--text-small);
+}
+.atelier-swatch figcaption strong { color: var(--teal); font-size: var(--text-body); }
+.atelier-swatch figcaption small { margin-inline-start: auto; color: var(--muted); }
+.catalog-card .atelier-swatch-image { aspect-ratio: 2.65; }
+.atelier-asset-facts, .atelier-drawing-facts, .atelier-layer-key dl { margin: 0; }
+.atelier-asset-facts { display: flex; flex-wrap: wrap; gap: 5px 12px; }
+.atelier-asset-facts div { display: flex; flex-wrap: wrap; gap: 2px 5px; font-size: var(--text-small); min-width: 0; }
+.atelier-asset-facts dt { color: var(--muted); }
+.atelier-asset-facts dd { margin: 0; color: var(--ink); font-weight: 680; }
+
+.atelier-technical-sheet {
+  margin: 0; min-width: 0; overflow: hidden;
+  border: var(--hairline) solid var(--line-strong); border-radius: var(--control-radius);
+  background: var(--panel);
+}
+.atelier-sheet-heading {
+  display: flex; justify-content: space-between; flex-wrap: wrap; align-items: baseline; gap: 4px 12px;
+  padding: 8px 10px; border-bottom: var(--hairline) solid var(--line);
+  background: var(--paper); color: var(--teal);
+}
+.atelier-sheet-heading strong { font-size: var(--text-body); }
+.atelier-sheet-heading span { color: var(--muted); font-size: var(--text-small); }
+.atelier-technical-sheet figcaption { padding: 10px; border-top: var(--hairline) solid var(--line); }
+.atelier-sheet-edition { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--muted); font-size: var(--text-small); overflow-wrap: anywhere; }
+.atelier-sheet-edition strong { color: var(--ink); }
+.atelier-drawing-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; padding: 8px 0; }
+.atelier-drawing-facts div { padding: 5px 7px; min-width: 0; background: var(--sand-3); }
+.atelier-drawing-facts dt { color: var(--muted); font-size: var(--text-small); }
+.atelier-drawing-facts dd { margin: 0; color: var(--ink); font-size: var(--text-body); font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.atelier-sheet-tip { font-size: var(--text-small); color: var(--muted); }
+.atelier-layer-key { padding: 7px 9px; border: var(--hairline) solid var(--line); border-radius: var(--control-radius); }
+.atelier-layer-key summary { color: var(--teal); font-size: var(--text-small); font-weight: 700; cursor: pointer; }
+.atelier-layer-key dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 120px), 1fr)); gap: 6px 9px; padding-top: 7px; font-size: var(--text-small); }
+.atelier-layer-key dt { color: var(--ink); font: 600 var(--text-small)/1.4 ui-monospace, Consolas, monospace; }
+.atelier-layer-key dd { margin: 0; color: var(--muted); }
+
+@media (max-width: 535px) {
+  .atelier-drawing-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

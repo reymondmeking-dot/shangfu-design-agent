@@ -1,0 +1,24 @@
+{{ model.promptHeader }}
+{{ model.visualScope }}
+
+{% for item in brief.prompts %}## {{ item.title|md }}
+
+画幅 {{ item.ratio }}，建议尺寸 {{ item.width }} × {{ item.height }} 像素。
+
+{{ item.text|md }}
+
+避免 {{ item.avoid|join('、')|md }}
+
+### 工具输入
+
+- 支持参考图的工具使用同版预览及技术图，并配合正文与避免项。{{ item.profiles.referenceImage|md }}
+- 仅接收自然语言的工具合并正文与避免项。
+- ComfyUI 可将以下正向及负向文本分别接入对应的提示节点。
+
+正向 {{ item.profiles.positive|md }}
+
+负向 {{ item.profiles.negative|md }}
+
+Midjourney {{ item.profiles.midjourney|md }}
+
+{% endfor %}工具的最终像素规格以实际出图为准，交付前按本报告规格核对。 [Midjourney 画幅说明](https://docs.midjourney.com/hc/en-us/articles/31894244298125-Aspect-Ratio) [ComfyUI 生图工作流](https://docs.comfy.org/tutorials/basic/text-to-image)

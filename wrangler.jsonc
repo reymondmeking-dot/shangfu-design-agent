@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "haipai-workbench-example",
+  "main": "src/worker.mjs",
+  "compatibility_date": "2026-11-25",
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    "REQUIRE_PASSWORD": "1",
+    "AI_MODEL": "@cf/qwen/qwen3.8-27b"
+  },
+  "ai": {
+    "binding": "AI",
+    "remote": true
+  },
+  "images": {
+    "binding": "IMAGES",
+    "remote": true
+  },
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "html_handling": "none",
+    "not_found_handling": "none"
+  }
+}

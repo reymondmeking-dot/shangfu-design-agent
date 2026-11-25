@@ -1,0 +1,196 @@
+/*
+@radix-ui/colors 3.0.0 — sand, teal, amber, red, white alpha
+https://github.com/radix-ui/colors
+
+MIT License
+
+Copyright (c) 2021 Radix
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
+:root, .light, .light-theme {
+  --sand-1: #fdfdfc;
+  --sand-2: #f9f9f8;
+  --sand-3: #f1f0ef;
+  --sand-4: #e9e8e6;
+  --sand-5: #e2e1de;
+  --sand-6: #dad9d6;
+  --sand-7: #cfceca;
+  --sand-8: #bcbbb5;
+  --sand-9: #8d8d86;
+  --sand-10: #82827c;
+  --sand-11: #63635e;
+  --sand-12: #21201c;
+}
+
+@supports (color: color(display-p3 1 1 1)) {
+  @media (color-gamut: p3) {
+    :root, .light, .light-theme {
+      --sand-1: color(display-p3 0.992 0.992 0.989);
+      --sand-2: color(display-p3 0.977 0.977 0.973);
+      --sand-3: color(display-p3 0.943 0.942 0.936);
+      --sand-4: color(display-p3 0.913 0.912 0.903);
+      --sand-5: color(display-p3 0.885 0.883 0.873);
+      --sand-6: color(display-p3 0.854 0.852 0.839);
+      --sand-7: color(display-p3 0.813 0.81 0.794);
+      --sand-8: color(display-p3 0.738 0.734 0.713);
+      --sand-9: color(display-p3 0.553 0.553 0.528);
+      --sand-10: color(display-p3 0.511 0.511 0.488);
+      --sand-11: color(display-p3 0.388 0.388 0.37);
+      --sand-12: color(display-p3 0.129 0.126 0.111);
+    }
+  }
+}
+
+:root, .light, .light-theme {
+  --teal-1: #fafefd;
+  --teal-2: #f3fbf9;
+  --teal-3: #e0f8f3;
+  --teal-4: #ccf3ea;
+  --teal-5: #b8eae0;
+  --teal-6: #a1ded2;
+  --teal-7: #83cdc1;
+  --teal-8: #53b9ab;
+  --teal-9: #12a594;
+  --teal-10: #0d9b8a;
+  --teal-11: #008573;
+  --teal-12: #0d3d38;
+}
+
+@supports (color: color(display-p3 1 1 1)) {
+  @media (color-gamut: p3) {
+    :root, .light, .light-theme {
+      --teal-1: color(display-p3 0.983 0.996 0.992);
+      --teal-2: color(display-p3 0.958 0.983 0.976);
+      --teal-3: color(display-p3 0.895 0.971 0.952);
+      --teal-4: color(display-p3 0.831 0.949 0.92);
+      --teal-5: color(display-p3 0.761 0.914 0.878);
+      --teal-6: color(display-p3 0.682 0.864 0.825);
+      --teal-7: color(display-p3 0.581 0.798 0.756);
+      --teal-8: color(display-p3 0.433 0.716 0.671);
+      --teal-9: color(display-p3 0.297 0.637 0.581);
+      --teal-10: color(display-p3 0.275 0.599 0.542);
+      --teal-11: color(display-p3 0.08 0.5 0.43);
+      --teal-12: color(display-p3 0.11 0.235 0.219);
+    }
+  }
+}
+
+:root, .light, .light-theme {
+  --amber-1: #fefdfb;
+  --amber-2: #fefbe9;
+  --amber-3: #fff7c2;
+  --amber-4: #ffee9c;
+  --amber-5: #fbe577;
+  --amber-6: #f3d673;
+  --amber-7: #e9c162;
+  --amber-8: #e2a336;
+  --amber-9: #ffc53d;
+  --amber-10: #ffba18;
+  --amber-11: #ab6400;
+  --amber-12: #4f3422;
+}
+
+@supports (color: color(display-p3 1 1 1)) {
+  @media (color-gamut: p3) {
+    :root, .light, .light-theme {
+      --amber-1: color(display-p3 0.995 0.992 0.985);
+      --amber-2: color(display-p3 0.994 0.986 0.921);
+      --amber-3: color(display-p3 0.994 0.969 0.782);
+      --amber-4: color(display-p3 0.989 0.937 0.65);
+      --amber-5: color(display-p3 0.97 0.902 0.527);
+      --amber-6: color(display-p3 0.936 0.844 0.506);
+      --amber-7: color(display-p3 0.89 0.762 0.443);
+      --amber-8: color(display-p3 0.85 0.65 0.3);
+      --amber-9: color(display-p3 1 0.77 0.26);
+      --amber-10: color(display-p3 0.959 0.741 0.274);
+      --amber-11: color(display-p3 0.64 0.4 0);
+      --amber-12: color(display-p3 0.294 0.208 0.145);
+    }
+  }
+}
+
+:root, .light, .light-theme {
+  --red-1: #fffcfc;
+  --red-2: #fff7f7;
+  --red-3: #feebec;
+  --red-4: #ffdbdc;
+  --red-5: #ffcdce;
+  --red-6: #fdbdbe;
+  --red-7: #f4a9aa;
+  --red-8: #eb8e90;
+  --red-9: #e5484d;
+  --red-10: #dc3e42;
+  --red-11: #ce2c31;
+  --red-12: #641723;
+}
+
+@supports (color: color(display-p3 1 1 1)) {
+  @media (color-gamut: p3) {
+    :root, .light, .light-theme {
+      --red-1: color(display-p3 0.998 0.989 0.988);
+      --red-2: color(display-p3 0.995 0.971 0.971);
+      --red-3: color(display-p3 0.985 0.925 0.925);
+      --red-4: color(display-p3 0.999 0.866 0.866);
+      --red-5: color(display-p3 0.984 0.812 0.811);
+      --red-6: color(display-p3 0.955 0.751 0.749);
+      --red-7: color(display-p3 0.915 0.675 0.672);
+      --red-8: color(display-p3 0.872 0.575 0.572);
+      --red-9: color(display-p3 0.83 0.329 0.324);
+      --red-10: color(display-p3 0.798 0.294 0.285);
+      --red-11: color(display-p3 0.744 0.234 0.222);
+      --red-12: color(display-p3 0.36 0.115 0.143);
+    }
+  }
+}
+
+:root {
+  --white-a1: rgba(255, 255, 255, 0.05);
+  --white-a2: rgba(255, 255, 255, 0.1);
+  --white-a3: rgba(255, 255, 255, 0.15);
+  --white-a4: rgba(255, 255, 255, 0.2);
+  --white-a5: rgba(255, 255, 255, 0.3);
+  --white-a6: rgba(255, 255, 255, 0.4);
+  --white-a7: rgba(255, 255, 255, 0.5);
+  --white-a8: rgba(255, 255, 255, 0.6);
+  --white-a9: rgba(255, 255, 255, 0.7);
+  --white-a10: rgba(255, 255, 255, 0.8);
+  --white-a11: rgba(255, 255, 255, 0.9);
+  --white-a12: rgba(255, 255, 255, 0.95);
+}
+
+@supports (color: color(display-p3 1 1 1)) {
+  @media (color-gamut: p3) {
+    :root {
+      --white-a1: color(display-p3 1 1 1 / 0.05);
+      --white-a2: color(display-p3 1 1 1 / 0.1);
+      --white-a3: color(display-p3 1 1 1 / 0.15);
+      --white-a4: color(display-p3 1 1 1 / 0.2);
+      --white-a5: color(display-p3 1 1 1 / 0.3);
+      --white-a6: color(display-p3 1 1 1 / 0.4);
+      --white-a7: color(display-p3 1 1 1 / 0.5);
+      --white-a8: color(display-p3 1 1 1 / 0.6);
+      --white-a9: color(display-p3 1 1 1 / 0.7);
+      --white-a10: color(display-p3 1 1 1 / 0.8);
+      --white-a11: color(display-p3 1 1 1 / 0.9);
+      --white-a12: color(display-p3 1 1 1 / 0.95);
+    }
+  }
+}

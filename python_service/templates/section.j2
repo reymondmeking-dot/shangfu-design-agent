@@ -1,0 +1,17 @@
+{%- if title == '风格和场景' -%}
+{{ [get('style'), get('scene') or ('团队接待、迎宾及岗位活动' if s.scene == 'group' else '正式私定场合')]|select|join('。') }}。
+{%- elif title in ['岗位与交付需求', '试穿与活动需求'] -%}
+{% for f in context_fields %}{{ f.label }}：{{ f.value }}。{% endfor %}
+{%- elif title == '版型选择' -%}
+选用{{ assets.pattern.name }}。{{ assets.pattern.description }}
+{%- elif title == '面料推荐' -%}
+推荐{{ assets.fabric.name }}。{{ assets.fabric.description }}
+{%- elif title == '工艺组合' -%}
+采用{{ assets.craft.name }}。{{ assets.craft.description }}
+{%- elif title == '尺寸交接与测量基准' -%}
+{% for f in fit %}{{ f.label }}：{{ f.value }}{% if f.key == 'placketWidthRequest' %}（参考图纸为 {{ s.cad.placketWidth }} mm，版师复核）{% else %}（量体与试穿待核）{% endif %}。{% endfor %}
+{%- elif title == '颜色与亮点' -%}
+{{ s.color }}。{% for a in [assets.pattern, assets.fabric, assets.craft] %}{{ a.id }}「{{ a.name }}」{{ a.description.rstrip('。') }}。{% endfor %}
+{%- elif title == '历史参考' -%}
+{% if assets.case is defined %}参考「{{ assets.case.name }}」。{{ assets.case.description }}{% else %}本次暂无适用模拟案例。{% endif %}
+{%- else -%}{{ previous }}{%- endif -%}

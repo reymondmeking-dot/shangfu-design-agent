@@ -1,0 +1,33 @@
+{{ model.designHeader }}
+适用场景为{{ model.sceneLabel|md }}。
+
+{{ solution.summary|md }}
+
+{% for section in solution.sections %}## {{ section.title|md }}
+
+{{ section.body|md }}
+
+{% endfor %}{% if model.source %}## 模拟案例与本版演示
+
+公开模拟项目：{{ model.source.title|md }}（{{ model.source.id|md }}），{{ model.source.pages|md }}。
+
+{{ model.source.adaptation|md }}
+
+### 模拟项目记录
+
+{% for row in model.source.design %}- {{ row|md }}
+{% endfor %}
+### 参考图记录
+
+{% for row in model.source.visual %}- {{ row|md }}
+{% endfor %}
+另附参考图 {{ model.source.figures|join('、')|md }}。
+
+### 应用前待核
+
+{% for row in model.source.reviewNotes %}- {{ row|md }}
+{% endfor %}
+{% endif %}## 人工复核
+
+{% for item in solution.checks %}- {{ item|md }}
+{% endfor %}

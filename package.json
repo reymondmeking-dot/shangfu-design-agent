@@ -1,0 +1,17 @@
+{
+  "name": "shangfu-design-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/local.mjs",
+    "test": "node --test test/public-workflow.mjs",
+    "preview:edge": "wrangler dev --local"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2"
+  },
+  "devDependencies": {
+    "wrangler": "^4.166.0"
+  }
+}
