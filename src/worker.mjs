@@ -17,7 +17,7 @@ import { accessGuard } from './auth.mjs';
 
 import { showcase } from './showcase.mjs';
 const root = '/design-agent';
-const revision = '20261125.12.3';
+const revision = '20261125.12.4';
 const responseHeaders = {
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
@@ -143,6 +143,13 @@ async function api(request, env, path) {
           photoBindings:env.AI && env.IMAGES && env.SESSION_SECRET?'configured':'unavailable'});
       response.headers.set('X-Agent-Backend','fastapi');
       return response;
+    }
+    if (request.method === 'DELETE' && /^\/projects\/[\w-]{1,100}$/.test(path)) {
+      const revisions=new URL(request.url).searchParams.getAll('expectedRevision');
+      if (revisions.length!==1 || !/^\d{1,16}$/.test(revisions[0]) || !Number.isSafeInteger(Number(revisions[0]))) {
+        return json({code:'SCHEMA_INVALID',error:'请先刷新项目版本，再删除项目。'},422);
+      }
+      return pythonRequest(env,path+'?expectedRevision='+revisions[0],undefined,'DELETE');
     }
     if (request.method === 'GET' && (['/projects','/notes'].includes(path) || /^\/projects\/[\w-]{1,100}(?:\/visual-images\/[\w-]{1,100})?$/.test(path))) {
       return pythonRequest(env,path);
@@ -335,7 +342,8 @@ export async function handle(request, env) {
   if (locked) return locked;
   const { pathname, origin } = new URL(request.url);
   if (pathname === root + '/api' || pathname.startsWith(root + '/api/')) {
-    if (request.method === 'POST' && request.headers.has('origin') && request.headers.get('origin') !== origin) {
+    if ((request.method === 'DELETE' || (request.method === 'POST' && request.headers.has('origin'))) &&
+        request.headers.get('origin') !== origin) {
       return json({ error: '请从工作台提交。' }, 403);
     }
     try {

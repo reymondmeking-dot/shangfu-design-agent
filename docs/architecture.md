@@ -84,3 +84,15 @@ DXF 以毫米记录轮廓、结构、工艺、尺寸、校尺和说明。查看 
 | 内部工作包、核对版交付包 | ZIP | 按编号阅读，使用包内 JSON 清单核对项目、版次和图片 |
 
 下载接口用 `Content-Disposition` 的 `filename*` 返回 UTF-8 文件名。`filename` 为兼容早期客户端的 ASCII 名称。
+
+## 本机项目库
+
+启动本机服务后，在工作台侧栏打开“本地项目库”。公开演示的草稿与本机 SQLite 分开保存。
+
+| 方法与路径 | 用途 |
+| --- | --- |
+| `GET /design-agent/api/health` | 查看数据库连接，SQLite 服务返回 `backend=fastapi`、`storage=sqlite` |
+| `GET /design-agent/api/projects` | 列出本机项目编号及当前修订号 |
+| `POST /design-agent/api/projects` | 用项目名称、定制类型和可选的客户原话 `rawText` 建立草稿 |
+| `GET /design-agent/api/projects/{id}` | 读取指定项目、客户原话和版本记录 |
+| `DELETE /design-agent/api/projects/{id}?expectedRevision=N` | 从项目库移除指定项目。修订号来自项目列表；若收到 409，重新读取后再确认删除 |

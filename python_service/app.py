@@ -7,7 +7,7 @@ from urllib.parse import quote
 from urllib.request import Request as UrlRequest, urlopen
 from contextlib import asynccontextmanager
 from typing import Literal
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from . import db
@@ -31,6 +31,8 @@ async def protect(request:Request,call_next):
     secret=os.getenv('SHANGFU_SERVICE_TOKEN','')
     if secret and not hmac.compare_digest(request.headers.get('authorization','').encode(),('Bearer '+secret).encode()):
         return JSONResponse({'code':'SERVICE_AUTH_REQUIRED','error':'需要服务授权。'},status_code=401)
+    if request.method=='DELETE' and request.headers.get('origin') not in (None,str(request.base_url).rstrip('/')):
+        return JSONResponse({'error':'请从本地工作台删除项目。'},status_code=403)
     return await call_next(request)
 
 
@@ -81,14 +83,26 @@ def stamp(kind,message,actor,version=0,**refs):
     return {'type':kind,'message':message,'actor':actor,'version':version,'changedAt':db.now(),**refs}
 
 
+def record_intake(con,pid,iid,text,scene):
+    intake={'id':iid,'projectId':pid,'rawText':text,'scene':scene,'createdAt':db.now(),'actor':'定制顾问'}
+    db.insert(con,pid,'intake',iid,intake)
+    db.event(con,pid,stamp('intake','顾问保存客户原话','定制顾问',projectId=pid,intakeId=iid))
+    return intake
+
+
 @app.post('/v1/projects')
 def create(req:NewProject):
     pid=req.projectId or db.uid('PRJ')
+    title=req.title if req.rawText is not None else req.title.strip()
     def action(con,p):
         ensure(p['revision']==0,'PROJECT_EXISTS','项目编号已存在。')
         if req.reuseNoteId:db.event(con,pid,stamp('reuse','新项目引用已批准的通用检查项','定制顾问',projectId=pid,noteId=req.reuseNoteId))
-        return {'id':pid,'title':req.title,'scene':req.scene},{}
-    return db.mutate(pid,req,'create',action,create=(req.title,req.scene,req.reuseNoteId))
+        payload={'id':pid,'title':title,'scene':req.scene}
+        if req.rawText:
+            intake=record_intake(con,pid,db.uid('IN'),req.rawText,req.scene)
+            return {**payload,'intake':intake},{'intake':intake['id']}
+        return payload,{}
+    return db.mutate(pid,req,'create',action,create=(title,req.scene,req.reuseNoteId))
 
 
 @app.post('/v1/extract')
@@ -100,21 +114,21 @@ def extract_stage(req:Extract):
         if db.return_decision(con,p)=='revise-requirements':
             previous=db.stage(con,pid,'solution',p['solution'])
             ensure(previous['text'].strip()!=req.text.strip(),'CUSTOMER_UPDATE_REQUIRED','请先录入客户确认的修改。')
-        iid=req.intakeId or db.uid('IN')
-        previous=db.stage(con,pid,'intake',iid)
-        intake={'id':iid,'projectId':pid,'rawText':req.text,'scene':req.scene,'createdAt':db.now(),'actor':'定制顾问'}
-        if previous:
-            ensure(previous['rawText']==req.text and previous['scene']==req.scene,'INTAKE_ID_CONFLICT','原话编号已对应另一份输入。')
+        lookup=req.intakeId or (p['intake'] if p['phase']=='intake' else None)
+        previous=db.stage(con,pid,'intake',lookup) if lookup else None
+        if previous and previous['rawText']==req.text and previous['scene']==req.scene:
+            iid=previous['id']
         else:
-            db.insert(con,pid,'intake',iid,intake)
-            db.event(con,pid,stamp('intake','顾问提交客户原话','定制顾问',projectId=pid,intakeId=iid))
+            ensure(not(previous and req.intakeId),'INTAKE_ID_CONFLICT','原话编号已对应另一份输入。')
+            iid=req.intakeId or db.uid('IN')
+            record_intake(con,pid,iid,req.text,req.scene)
         reuse=req.reuseNoteId if 'reuseNoteId' in req.model_fields_set else p['reused']
         if reuse and (p['reused']!=reuse or p['scene']!=req.scene):
-            note=con.execute("SELECT data FROM stage WHERE kind='reuse' AND id=?",(reuse,)).fetchone()
+            note=db.available_reuse_note(con,reuse)
             ensure(note and json.loads(note[0])['scene']==req.scene,'REUSE_NOT_APPROVED','只能选用已批准、适合本单场景的检查项。',422)
         db.insert(con,pid,'extraction',db.uid('EXT'),result,iid)
         db.event(con,pid,stamp('extract','整理客户原话，提取设计参数','Agent',projectId=pid,intakeId=iid))
-        return dict(result),{'title':req.title,'scene':req.scene,'phase':'extracted','intake':iid,'requirement':None,'match':None,'review':None,'reused':reuse}
+        return dict(result),{'title':req.title if 'title' in req.model_fields_set else p['title'],'scene':req.scene,'phase':'extracted','intake':iid,'requirement':None,'match':None,'review':None,'reused':reuse}
     return db.mutate(pid,req,'extract',action,create=(req.title,req.scene,req.reuseNoteId))
 
 
@@ -246,13 +260,31 @@ def approve_reuse(pid:str,req:Reuse):
 
 @app.get('/v1/notes')
 def notes():
-    with db.connection() as con:return {'notes':[json.loads(r[0]) for r in con.execute("SELECT data FROM stage WHERE kind='reuse' ORDER BY rowid DESC")]}
+    with db.connection() as con:return {'notes':[json.loads(r[0]) for r in con.execute(
+        """SELECT s.data FROM stage AS s JOIN project AS p ON p.id=s.project
+        WHERE s.kind='reuse' AND p.phase!='deleted' ORDER BY s.rowid DESC""")]}
 
 
 @app.get('/v1/projects')
 def projects():
     with db.connection() as con:
-        return {'projects':[dict(r) for r in con.execute('SELECT id,title,scene,phase,revision,version,created FROM project ORDER BY rowid DESC')]}
+        con.execute('BEGIN')
+        active=con.execute("""SELECT id,title,scene,phase,revision,version,created FROM project
+            WHERE phase!='deleted' ORDER BY rowid DESC""")
+        projects=[dict(row) for row in active]
+        deleted=con.execute("SELECT id FROM project WHERE phase='deleted' ORDER BY rowid DESC")
+        return {'projects':projects,'deletedProjectIds':[row['id'] for row in deleted]}
+
+
+@app.delete('/v1/projects/{pid}')
+def delete_project(pid:str,expectedRevision:int=Query(...,ge=0)):
+    with db.connection() as con,db.transaction(con):
+        project=db.require_project(con,pid,include_deleted=True)
+        if project['phase']!='deleted':
+            ensure(project['revision']==expectedRevision,'REVISION_CONFLICT','项目已更新，请刷新后再删除。')
+            con.execute("UPDATE project SET phase='deleted',revision=revision+1 WHERE id=?",(pid,))
+            db.event(con,pid,stamp('project-deleted','从项目列表删除','定制顾问',project['version'],projectId=pid))
+    return {'id':pid,'deleted':True}
 
 
 @app.get('/v1/projects/{pid}')

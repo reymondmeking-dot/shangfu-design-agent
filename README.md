@@ -6,7 +6,7 @@
 
 [观看 45 秒操作演示](https://planto-ai.com/design/video) ｜ [在线演示](https://planto-ai.com/design) ｜ [在线项目简介](https://planto-ai.com/design/overview) ｜ [技术路线、业务边界与接口](docs/architecture.md)
 
-一张 40 人酒店礼宾服模拟订单贯穿全片。依次录入原话、核对机洗要求、选择藏蓝斜纹、查看成衣与袋口，再把门襟从 30 mm 改到 35 mm。最后打开五表台账，将获批的试穿检查带入下一单。普通话旁白由小米 MiMo TTS 合成，附中英字幕。[下载最新版 1080p MP4](https://github.com/reymondmeking-dot/shangfu-design-agent/releases/latest/download/shangfu-design-agent-demo.mp4)
+一张 40 人酒店礼宾服模拟订单贯穿全片。依次录入原话、核对机洗要求、选择藏蓝斜纹、查看成衣与袋口，再把门襟从 30 mm 改到 35 mm。最后打开五表台账，将获批的试穿检查带入下一单。普通话旁白采用小米 MiMo TTS 的白桦男声，配有背景音乐和中英字幕。[下载最新版 1080p MP4](https://github.com/reymondmeking-dot/shangfu-design-agent/releases/latest/download/shangfu-design-agent-demo.mp4)
 
 ## 运行工作台
 
@@ -21,17 +21,17 @@ Windows PowerShell 中运行以下命令。
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -r python_service/requirements.txt
-.\.venv\Scripts\python.exe run.py
+.\.venv\Scripts\python.exe run.py --port 4873
 ```
 
 macOS 或 Linux 中运行以下命令。
 
 ```sh
 .venv/bin/python -m pip install -r python_service/requirements.txt
-.venv/bin/python run.py
+.venv/bin/python run.py --port 4873
 ```
 
-打开 [本机工作台](http://127.0.0.1:4713/design-agent)。启动器同时启动 Node 界面和 FastAPI，生成进程间凭据，把项目和图片复核记录写入 `.state`。按 Ctrl+C 停止。换端口可运行 `python run.py --port 4714`。
+打开 [本机工作台](http://127.0.0.1:4873/design-agent)。启动器同时启动 Node 界面和 FastAPI，生成进程间凭据，把项目和图片复核记录写入 `.state`。在侧栏打开“本地项目库”可保存草稿、查看项目列表和连接状态。项目选择框旁可删除当前项目。按 Ctrl+C 停止。换端口可运行 `python run.py --port 4714`。
 
 ## 在演示中观察什么
 

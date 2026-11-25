@@ -79,15 +79,22 @@ def transaction(con):
         raise
 
 
-def require_project(con,pid):
+def require_project(con,pid,*,include_deleted=False):
     row=con.execute('SELECT * FROM project WHERE id=?',(pid,)).fetchone()
+    if row is not None and not include_deleted and row['phase']=='deleted':
+        raise BusinessError('PROJECT_NOT_FOUND','项目已删除。',404)
     if row is None:raise BusinessError('PROJECT_NOT_FOUND','未找到此项目。',404)
     return dict(row)
 
 
+def available_reuse_note(con,note_id):
+    return con.execute("""SELECT s.data FROM stage AS s JOIN project AS p ON p.id=s.project
+        WHERE s.kind='reuse' AND s.id=? AND p.phase!='deleted'""",(note_id,)).fetchone()
+
+
 def new_project(con,pid,title,scene,note=None):
     if note:
-        found=con.execute("SELECT data FROM stage WHERE kind='reuse' AND id=?",(note,)).fetchone()
+        found=available_reuse_note(con,note)
         if not found or json.loads(found[0])['scene']!=scene:
             raise BusinessError('REUSE_NOT_APPROVED','来源项目尚未批准此场景的复用记录。')
     con.execute('INSERT INTO project(id,title,scene,created,revision,phase,reused) VALUES(?,?,?,?,0,?,?)',
@@ -119,16 +126,21 @@ def event(con,pid,data):
 
 
 def mutate(pid,req,operation,action,create=None):
-    fingerprint=hashlib.sha256(dump([operation,req.model_dump()]).encode()).hexdigest()
+    data=req.model_dump()
+    if operation=='create' and data.get('rawText') is None:
+        # Match request receipts from before draft text could be saved at creation.
+        data.pop('rawText',None)
+        data['title']=data['title'].strip()
+    fingerprint=hashlib.sha256(dump([operation,data]).encode()).hexdigest()
     with connection() as con,transaction(con):
+        if create and not con.execute('SELECT 1 FROM project WHERE id=?',(pid,)).fetchone():
+            new_project(con,pid,*create)
+        project=require_project(con,pid)
         if req.requestId:
             prior=con.execute('SELECT fingerprint,response FROM receipt WHERE project=? AND request=?',(pid,req.requestId)).fetchone()
             if prior:
                 if prior[0]!=fingerprint:raise BusinessError('REQUEST_ID_CONFLICT','请求编号对应的操作不同。',409)
                 return json.loads(prior[1])
-        if create and not con.execute('SELECT 1 FROM project WHERE id=?',(pid,)).fetchone():
-            new_project(con,pid,*create)
-        project=require_project(con,pid)
         if req.expectedRevision is not None and req.expectedRevision!=project['revision']:
             raise BusinessError('REVISION_CONFLICT','项目已更新，请读取最新版本。',409)
         payload,changes=action(con,project)

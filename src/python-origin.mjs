@@ -1,5 +1,5 @@
 // Only the deployment config chooses the origin. Never forward browser headers or cookies.
-export async function pythonRequest(env, path, body) {
+export async function pythonRequest(env, path, body, method = body === undefined ? 'GET' : 'POST') {
   const base = new URL(env.SHANGFU_ORIGIN);
   const loopback = ['localhost','127.0.0.1','[::1]'].includes(base.hostname);
   if ((base.protocol !== 'https:' && !(loopback && base.protocol === 'http:')) ||
@@ -11,7 +11,7 @@ export async function pythonRequest(env, path, body) {
   if (env.SHANGFU_SERVICE_TOKEN) headers.Authorization = 'Bearer ' + env.SHANGFU_SERVICE_TOKEN;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   try {
-    const res = await fetch(url, {method: body === undefined ? 'GET' : 'POST',headers,
+    const res = await fetch(url, {method,headers,
       body:body === undefined ? undefined : JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(95000)});
     const output = new Headers({'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Agent-Backend':'fastapi',
       'Content-Type':res.headers.get('content-type') || 'application/octet-stream'});

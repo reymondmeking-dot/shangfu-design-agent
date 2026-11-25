@@ -8,7 +8,7 @@ const repo = 'https://github.com/reymondmeking-dot/shangfu-design-agent';
 const releaseVideo = repo + '/releases/latest/download/shangfu-design-agent-demo.mp4';
 const videoPath = base + '/media/shangfu-design-agent-demo.mp4';
 // Refresh these values together with the public MP4 so viewers get its new cache key.
-const videoRelease = { bytes:16622531, revision:'dc4fc796bc4b' };
+const videoRelease = { bytes:16009380, revision:'5f3d4cdbeb11' };
 const videoUrl = videoPath + '?v=' + videoRelease.revision;
 const csp = "default-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'none'; style-src 'self'; img-src 'self'; media-src 'self' https://github.com https://release-assets.githubusercontent.com https://objects.githubusercontent.com";
 const steps = ['需求录入','需求解构','人工确认','资源匹配','方案初稿','图纸与提示词','版师复核','归档导出','复盘复用'];
@@ -37,6 +37,10 @@ const assets = new Map([
   ['jacquard.webp','/assets/swatch-jacquard.webp'],
   ['twill.webp','/assets/swatch-twill.webp'],['concierge-garment.jpg','/assets/photo-group-v1-garment.jpg'],
   ['concierge-detail.jpg','/assets/photo-group-v1-detail.jpg'],['concierge-on-body.jpg','/assets/photo-group-v1-on-body.jpg'],
+  ...['concierge-v1','concierge-v2','atelier-v1','atelier-v3'].map(view=>{
+    const file='overview-'+view+'.svg';
+    return [file,'/showcase/'+file];
+  }),
 ]);
 const escape = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const illustration = key => base+'/assets/'+key;
@@ -152,22 +156,69 @@ function overview() {
     ['07 版师复核','FastAPI / 版本库','版师签认图纸，或退回需求、尺寸修改'],['08 归档导出','SQLite / XlsxWriter','按已复核的版本导出台账和案例包'],
     ['09 复盘复用','SQLite','向下一单带入已批准的检查项'],
   ];
-  return headings('项目简介','海派定制顾问的应用场景、工作流程、技术与职责边界。',base+'/overview',`
-<section class="page-head"><span class="eyebrow">项目简介</span><h1>定制订单怎样办理</h1><p>定制业务专员、职业服方案设计师和高级定制企划人员可按项目编号查看原话、选料、方案、图纸和归档版本。</p></section>
-<section class="editorial"><h2>两份模拟订单</h2><div class="case-tiles"><article>${figure(illustration('jacquard.webp'),'低对比织花面料纹理','面料质感示意')}<h3>海派高端私定</h3><p>客户把交领改为低立领。对照 V1 和 V3，查看新需求如何改变版型，怎样保留无扣开襟。</p><a href="${exampleUrl('atelier',1,1)}">查看私定订单 →</a></article>
-<article>${figure(illustration('concierge-detail.jpg'),'藏蓝斜纹夹克口袋细节','礼宾制服工艺参考')}<h3>团体职业服</h3><p>40 人礼宾团队需要可机洗的藏蓝夹克。查看门襟从 30 mm 改到 35 mm 后的图纸和归档记录。</p><a href="${exampleUrl('concierge',1,1)}">查看团服订单 →</a></article></div></section>
-<section class="editorial"><h2>办理流程与技术组件</h2><p>需求按风格调性、廓形要求、面料质感、工艺细节、色彩体系和场景适配度整理。资源库有 31 项模拟版型、面料、工艺和历史案例。</p><div class="route-table" role="table" aria-label="指定技术栈与流程"><div class="route-row table-head" role="row"><strong role="columnheader">业务节点</strong><strong role="columnheader">技术组件</strong><strong role="columnheader">阶段输出</strong></div>${rows.map(row=>`<div class="route-row" role="row">${row.map(item=>`<span role="cell">${item}</span>`).join('')}</div>`).join('')}</div>
-<p class="fine">表中列出 FastAPI 版的组件。线上业务工作台使用 Cloudflare Workers AI，项目保存在浏览器。免密案例可浏览固定模拟订单，不保存访客数据。</p></section>
-<section class="editorial"><h2>订单交付物</h2>
+  const plates=(caseKey,versions,labels,alt) => versions.map((version,index)=>
+    `<figure><a href="${exampleFile(caseKey,version,'svg')}" aria-label="打开 V${version} 完整款式图"><img src="${illustration('overview-'+caseKey+'-v'+version+'.svg')}" alt="${alt[index]}" width="${caseKey==='atelier'?506:183}" height="${caseKey==='atelier'?288:215}" loading="lazy"></a><figcaption><strong>V${version}</strong><span>${labels[index]}</span></figcaption></figure>`
+  ).join('');
+  const routeInputs=['客户原话与项目基本信息','已保存的客户原话','六维需求草稿与顾问核对意见','确认版需求与四类资产','确认的需求与选定资源','方案版本、版型与技术参数','版师意见与参数差异','通过版师复核的版本快照','获批的试穿及复用检查项'];
+  const files=exampleFile('concierge',2,'xlsx');
+  const archivedRows=[
+    ['V1','版师复核','版师','门襟从 30 mm 调整至 35 mm 后重新送审。'],
+    ['V2','版师复核','版师','已核对本版本门襟 35 mm 及技术图。'],
+    ['V2','人工归档','业务人员','模拟归档已复核的参考稿'],
+  ];
+  return headings('项目简介','通过礼宾制服与海派私定两个模拟案例，查看选料、改款、图纸和业务台账。',base+'/overview',`
+<article class="overview">
+<section class="ov-intro" aria-labelledby="ov-title"><div class="ov-intro-copy">
+<p class="eyebrow">高级定制与团体职业服</p><h1 id="ov-title">海派定制顾问</h1>
+<p class="ov-lead">从客户的一句话，到可复核的款式图与方案初稿。</p>
+<p>定制业务专员、职业服方案设计师和高级定制企划人员，可以用同一项目编号回查需求、选料和每次改款。</p>
+<div class="actions"><a class="button solid" href="/design#case">体验模拟订单</a><a class="button outline" href="/design/video">观看 45 秒演示</a></div></div>
+<figure class="ov-contact"><div class="ov-contact-photos"><img class="ov-person" src="${illustration('concierge-on-body.jpg')}" width="1200" height="1500" fetchpriority="high" alt="酒店门口的礼宾人员身穿藏蓝夹克，旁边放着行李箱">
+<img class="ov-garment" src="${illustration('concierge-garment.jpg')}" width="1500" height="1000" alt="同款藏蓝夹克的正面与背面，可见翻驳领和水平袋口">
+<img class="ov-pocket" src="${illustration('concierge-detail.jpg')}" width="1200" height="1200" alt="藏蓝斜纹面料上的双嵌线袋口特写"></div>
+<figcaption>礼宾夹克的三幅模拟效果图。穿着场景、成衣正背面与袋口细节。</figcaption></figure></section>
+<section class="ov-chapter" aria-labelledby="ov-group"><div class="ov-copy">
+<p class="eyebrow">团体职业服</p><h2 id="ov-group">40 人礼宾团队的制服</h2>
+<blockquote>“大堂接待和门口迎宾要轮岗，搬运行李时手臂要抬得起来。”</blockquote>
+<p>顾问把轮岗、抬臂和机洗写进需求，选用藏蓝斜纹面料。版师在 V1 提出加宽门襟，V2 重新出图送审。</p>
+<a class="ov-link" href="${exampleUrl('concierge',7,2)}">查看版师复核记录 →</a></div>
+<div class="ov-plates"><div class="ov-plate-head"><h3>门襟尺寸对照</h3><span>测点 C / mm</span></div><div class="ov-drawing-compare">
+<figure class="ov-cad-context"><a href="${exampleFile('concierge',2,'svg')}"><img src="${exampleFile('concierge',2,'svg')}" width="2100" height="1175" loading="lazy" alt="礼宾制服 V2 完整款式图，可见前后衣片、门襟局部、全部尺寸标注与校尺"></a><figcaption>V2 正背面技术图</figcaption></figure><div class="ov-placket-pair">${plates('concierge',[1,2],['初稿 30 mm','修订 35 mm'],['V1 图纸门襟两侧边线的实测间距，C 标注 30 毫米','V2 同一测点的两侧边线，C 标注 35 毫米'])}</div></div>
+<p class="ov-note">局部取自两版款式图。点击任一图查看原图的六个测点和 100 mm 校尺。</p></div></section>
+<section class="ov-chapter ov-private" aria-labelledby="ov-atelier"><div class="ov-copy">
+<p class="eyebrow">海派高端私定</p><h2 id="ov-atelier">从交领改为低立领</h2>
+<blockquote>“这次必须低立领，开襟必须无扣。”</blockquote><p>顾问重新确认领型，保留宽松廓形和无扣开襟。版师复核 V3 的领口结构，颜色留待实物样布确认。</p>
+<a class="ov-link" href="${exampleUrl('atelier',3,3)}">查看顾问确认的要求 →</a></div>
+<div class="ov-private-art"><div class="ov-plate-head"><h3>前衣片领口</h3><span>款式图局部</span></div>
+<div class="ov-collar-pair">${plates('atelier',[1,3],['交领无扣','低立领无扣'],['交领版正面上半身的结构线，左、右领缘向前中交汇','低立领版正面上半身的结构线，领缘沿颈根立起并在前中开口'])}</div>
+<div class="ov-swatch"><img src="${illustration('jacquard.webp')}" width="96" height="56" loading="lazy" alt="细织花面料的纹理样例"><p>客户保留细暗纹要求，试穿时核对肩背和抬臂余量。</p></div></div></section>
+<section class="ov-chapter ov-archive" aria-labelledby="ov-ledger"><div class="ov-copy">
+<p class="eyebrow">归档与复用</p><h2 id="ov-ledger">下一单带走试穿检查项</h2><p>业务人员在归档后批准复用迎宾站姿与抬臂试穿检查。新项目保留检查项，客户原话另行录入。</p>
+<a class="ov-link" href="${exampleUrl('concierge',1,1,true)}">打开下一单 →</a></div>
+<div class="ov-book"><div class="ov-plate-head"><h3>操作与版本</h3><span>DEMO-SH-01 / V2</span></div>
+<table><caption class="ov-assist">摘自礼宾制服 V2 业务台账的操作与版本工作表</caption><thead><tr><th scope="col">版本</th><th scope="col">事件</th><th scope="col">操作角色</th><th scope="col">原因或变更</th></tr></thead><tbody>${archivedRows.map(row=>`<tr>${row.map((c,i)=>i===0?`<th scope="row">${c}</th>`:`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>
+<div class="ov-book-links"><span>摘自五表台账</span><a href="${files}" download>下载完整 XLSX ↓</a></div></div></section>
+<section class="ov-reference" aria-labelledby="ov-tech"><div class="ov-copy"><h2 id="ov-tech">实施与交付</h2><p>每个阶段的输入、使用工具和交付文件，都可在方案中追溯。</p></div><div class="ov-reference-body">
+<figure class="ov-flow"><figcaption>FastAPI 版技术路线</figcaption><ol aria-label="技术环节">
+<li><strong>拆解与确认</strong><small>Qwen3 / Pydantic</small></li><li><strong>匹配与出稿</strong><small>SQLite / Jinja2</small></li>
+<li><strong>出图与复核</strong><small>ezdxf / SVG</small></li><li><strong>归档与复用</strong><small>XlsxWriter / SQLite</small></li></ol></figure>
+<details class="ov-disclosure"><summary>九个业务节点与技术架构</summary><div class="ov-detail"><p>需求按风格调性、廓形要求、面料质感、工艺细节、色彩体系和场景适配度整理。资源库有 31 项模拟版型、面料、工艺和历史案例。</p><div class="route-table ov-technology" role="table" aria-label="指定技术栈与流程"><div class="route-row table-head" role="row"><strong role="columnheader">业务节点</strong><strong role="columnheader">输入</strong><strong role="columnheader">技术组件</strong><strong role="columnheader">阶段输出</strong></div>${rows.map((row,i)=>`<div class="route-row" role="row">${[row[0],routeInputs[i],row[1],row[2]].map(item=>`<span role="cell">${item}</span>`).join('')}</div>`).join('')}</div>
+<p class="fine">表中列出 FastAPI 版的组件。线上业务工作台使用 Cloudflare Workers AI，项目保存在浏览器。免密案例可浏览固定模拟订单，不保存访客数据。</p></div></details>
+<details class="ov-disclosure"><summary>订单的五类交付物</summary><div class="ov-detail">
 <div class="route-table" role="table" aria-label="五类交付物">${[
  ['资产知识库','按标签、风格或场景查找版型、面料、工艺和历史案例，查看分类清单与使用规范。'],
  ['需求解构','六维参数清单和情绪审美标签报告保留原话出处。没有依据的项目留给顾问确认。'],
  ['方案初稿','初稿列出资产编号、选择理由和可行性提示，注明必须满足的条件和待试穿项目。'],
  ['视觉需求包','提供成衣正背面、工艺特写和上身场景三组提示词及图像尺寸，附同版 SVG 与毫米单位 DXF 图纸。'],
  ['业务台账','五张可编辑 XLSX 工作表汇总项目、需求、方案、资源使用和复核记录，可查旧版、退回原因与确认人。']
- ].map(([label,value])=>`<div class="route-row" role="row"><strong role="rowheader">${label}</strong><span role="cell" class="wide-cell">${value}</span></div>`).join('')}</div></section>
-<section class="editorial"><h2>试点安排与风险</h2><p>先用两份模拟订单核对交付文件，由顾问、设计师和版师检查术语、搭配和图纸。进入试点前，需取得素材授权，明确资源维护和审批责任。</p><p>效果图不能确认实际尺寸和质感。更改领型、门襟或面料后须重新出图，请版师复核，再用色卡、样布和试穿确认。</p></section>
-<section class="editorial boundary"><h2>Agent 能力边界清单</h2><p>Agent 整理需求、检索模拟资源、起草方案、生成绘图提示词和款式图，并汇总台账。顾问确认必备条件和选料，版师复核尺寸与图纸。定制终审、版型定稿、报价、商务洽谈、签约和生产下单由业务人员负责。</p><p>演示只使用模拟资产，不连接生产系统或真实定制业务接口。</p><div class="actions"><a class="button solid" href="/design">查看模拟订单</a><a class="button outline" href="${repo}/blob/main/docs/architecture.md">架构与接口说明</a></div></section>`);
+ ].map(([label,value])=>`<div class="route-row" role="row"><strong role="rowheader">${label}</strong><span role="cell" class="wide-cell">${value}</span></div>`).join('')}</div></div></details>
+<details class="ov-disclosure"><summary>试点安排与风险合规</summary><div class="ov-detail"><p>先用两份模拟订单核对交付文件，由顾问、设计师和版师检查术语、搭配和图纸。进入试点前，需取得素材授权，明确资源维护和审批责任。</p><p>效果图不能确认实际尺寸和质感。更改领型、门襟或面料后须重新出图，请版师复核，再用色卡、样布和试穿确认。</p></div></details>
+</div></section>
+<section class="ov-boundary" aria-labelledby="ov-boundary"><div><h2 id="ov-boundary">Agent 能力边界清单</h2><p>演示使用模拟资产，不连接生产系统或真实定制业务接口。</p></div><div><dl class="ov-roles">
+<div><dt>Agent</dt><dd>整理需求，检索版型、面料、工艺与案例，起草方案、绘图提示词、款式图和台账。</dd></div>
+<div><dt>顾问与版师</dt><dd>顾问核对必备条件、选料与试穿反馈。版师复核图纸和尺寸，决定是否退回修订。</dd></div>
+<div><dt>业务人员</dt><dd>负责定制终审、版型定稿、报价、商务洽谈、签约和生产下单。</dd></div></dl>
+<a class="ov-link" href="${repo}/blob/main/docs/architecture.md">查看架构与接口说明 →</a></div></section></article>`);
 }
 
 function video(url) {
@@ -182,7 +233,7 @@ function video(url) {
   const selected=chapters.find(c=>c.id===url.searchParams.get('chapter'));
   const offset=selected?'#t='+selected.time:'';
   return headings('演示视频','观看礼宾夹克从需求录入到归档复用的过程。',base+'/video',`
-<section class="page-head"><span class="eyebrow">操作演示</span><h1>酒店礼宾服订单演示</h1><p>45 秒，小米 MiMo 普通话配音，中英字幕。</p></section>
+<section class="page-head"><span class="eyebrow">操作演示</span><h1>酒店礼宾服订单演示</h1><p>45 秒，小米 MiMo 白桦男声讲解，配有背景音乐和中英字幕。</p></section>
 <section class="film" id="player" aria-label="作品演示播放器"><video controls playsinline preload="metadata" poster="${illustration('video-cover.jpg')}" aria-label="海派定制顾问项目演示">
 <source src="${videoUrl}${offset}" type="video/mp4"><source src="${releaseVideo}${offset}" type="video/mp4"><a href="${releaseVideo}">下载 MP4 演示视频</a></video>
 <nav class="film-links" aria-label="视频章节">${chapters.map(c=>`<a href="/design/video?chapter=${c.id}#player"${selected===c?' aria-current="true"':''}>${c.clock}　${c.label}</a>`).join('')}</nav>

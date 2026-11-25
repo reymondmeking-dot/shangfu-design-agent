@@ -13,13 +13,24 @@ class Request(BaseModel):
     requestId: Ident | None = None
 
 
-class NewProject(Request):
+class ProjectInput(Request):
     title: str = Field('未命名定制项目', min_length=1, max_length=120)
     scene: Scene = 'private'
     reuseNoteId: Ident | None = None
 
 
-class Extract(NewProject):
+class NewProject(ProjectInput):
+    title: Annotated[str, StringConstraints(strip_whitespace=False,min_length=1,max_length=120)] = '未命名定制项目'
+    rawText: Annotated[str, StringConstraints(strip_whitespace=False,max_length=4200)] | None = None
+
+    @field_validator('title')
+    @classmethod
+    def nonblank_title(cls,value):
+        if not value.strip():raise ValueError('请填写项目名称')
+        return value
+
+
+class Extract(ProjectInput):
     text: Text
     intakeId: Ident | None = None
 

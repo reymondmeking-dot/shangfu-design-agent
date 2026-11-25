@@ -100,6 +100,7 @@ def store(pid:str,req:ImageUpload):
 def images(pid:str,sid:str):
     with db.connection() as con:
         con.execute('BEGIN')
+        db.require_project(con,pid)
         demand(db.stage(con,pid,'solution',sid),'SOLUTION_NOT_FOUND','找不到此项目的方案。',404)
         rows=con.execute("SELECT meta,bytes,approved FROM visual_image WHERE project=? AND solution=? ORDER BY CASE key WHEN 'garment' THEN 0 WHEN 'detail' THEN 1 ELSE 2 END",(pid,sid))
         events=con.execute("SELECT data FROM stage WHERE project=? AND kind='visual-event' AND parent=? ORDER BY rowid",(pid,sid))
@@ -110,6 +111,7 @@ def images(pid:str,sid:str):
 @router.post('/v1/projects/{pid}/visual-events')
 def save_event(pid:str,req:VisualEvent):
     with db.connection() as con,db.transaction(con):
+        project=db.require_project(con,pid)
         record=db.stage(con,pid,'solution',req.solutionId)
         demand(record and record['version']==req.version,'PHOTO_REVISION_STALE','图片意见与项目方案不符。')
         old=db.stage(con,pid,'visual-event',req.eventId)
@@ -129,7 +131,6 @@ def save_event(pid:str,req:VisualEvent):
         else:demand(bool(req.feedback.strip()),'PHOTO_FEEDBACK_REQUIRED','请填写具体修改意见。')
         if photo:con.execute('UPDATE visual_image SET approved=? WHERE project=? AND solution=? AND key=?',(int(req.type=='approve-photo'),pid,req.solutionId,req.photoKey))
         if req.type=='photo-feedback' and req.photoKey=='garment' and req.action=='redraw':
-            project=db.require_project(con,pid)
             if project['phase']=='generated' and project['solution']==req.solutionId:
                 con.execute("DELETE FROM visual_image WHERE project=? AND solution=? AND key!='garment'",(pid,req.solutionId))
         event={**body,'actor':'定制顾问','changedAt':db.now(),'projectId':pid,'message':('顾问核对：'+'、'.join(req.checks) if req.type=='approve-photo' else '顾问反馈：'+req.feedback)}

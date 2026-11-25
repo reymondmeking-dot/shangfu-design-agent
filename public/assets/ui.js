@@ -21,16 +21,22 @@ const COLLAR_LABELS={cross:'交领开襟','low-stand':'低立领',stand:'立领'
 const CARE_LABELS={machine:'可机洗',dry:'干洗',hand:'手洗',unknown:'待核实'};
 const FABRIC_WEIGHTS={light:'轻薄',medium:'中等'};
 const main=document.getElementById('main'), sidebar=document.getElementById('sidebar'), toast=document.getElementById('toast');
-let saved;
-try {saved=JSON.parse(localStorage.getItem(STORE))||{};} catch {saved={};}
+let saved, storedText=null;
+try {storedText=localStorage.getItem(STORE);saved=JSON.parse(storedText)||{};} catch {saved={};}
+const deletedPrefix=STORE+'.deleted.';
+function wasDeleted(id){
+ if(!id)return false;
+ try{return localStorage.getItem(deletedPrefix+id)!==null;}catch{return false;}
+}
 const now=()=>new Date().toISOString(), uid=()=>globalThis.crypto?.randomUUID?.()||Date.now()+'-'+Math.random().toString(36).slice(2);
 function newProject({title='未命名定制项目',scene='private',text='',reused=null}={}) {
  return {id:uid(),title,scene,text,reused,createdAt:now(),requirements:null,match:null,selected:{},solution:null,brief:null,drawing:null,
   currentRevision:null,history:[],events:[],caseNote:null,archivedVersions:[],stale:false,extractedText:'',extractedScene:'',status:'intake'};
 }
-let projects=Array.isArray(saved.projects)&&saved.projects.length?saved.projects:[newProject()];
+let projects=(Array.isArray(saved.projects)?saved.projects:[]).filter(p=>!wasDeleted(p.id));
+if(!projects.length)projects.push(newProject());
 let activeId=projects.some(p=>p.id===saved.activeId)?saved.activeId:projects[0].id;
-let notes=Array.isArray(saved.notes)?saved.notes:[], page='intake', versionView=null;
+let notes=(Array.isArray(saved.notes)?saved.notes:[]).filter(n=>!wasDeleted(n.projectId)), page='intake', versionView=null;
 let catalog=[], cases=[], catalogError='', busy=false, toastTimer, filterType='all', filterScene='', filterStyle='', query='';
 let reviewedSamples={};
 let remote=false, sourceIndex=[], referenceSources=[], catalogReady;
@@ -42,7 +48,38 @@ const PHOTO_VIEWS=[
 ];
 let photoDatabase;
 function current(){return projects.find(p=>p.id===activeId)||projects[0];}
-function persist(){try{localStorage.setItem(STORE,JSON.stringify({projects,activeId,notes}));}catch{notify('浏览器空间不足，本次修改未能保存。请先导出台账。',true);}}
+// Keep another tab's additions and edits when saving our own working copy.
+function mergeOtherTab(rows, diskRows=[], previous=[]){
+ const original=new Map(previous.map(row=>[row.id,row]));
+ const local=new Map(rows.map(row=>[row.id,row]));
+ for(const row of diskRows){
+  const here=local.get(row.id);
+  if(!here){rows.push(row);continue;}
+  if(JSON.stringify(here)===JSON.stringify(original.get(row.id)))Object.assign(here,row);
+ }
+}
+function chooseRemainingProject(){
+ if(!projects.length)projects.push(newProject());
+ if(!projects.some(p=>p.id===activeId)){
+  activeId=projects[0].id;versionView=null;
+  page=allowed(current(),current().status)?current().status:'intake';
+ }
+}
+function persist(){
+ try{
+  const latest=localStorage.getItem(STORE);
+  if(latest&&latest!==storedText){
+   const disk=JSON.parse(latest),previous=JSON.parse(storedText)||{};
+   mergeOtherTab(projects,disk.projects,previous.projects);
+   mergeOtherTab(notes,disk.notes,previous.notes);
+  }
+  projects=projects.filter(p=>!wasDeleted(p.id));notes=notes.filter(n=>!wasDeleted(n.projectId));
+  const previousId=activeId;chooseRemainingProject();
+  const next=JSON.stringify({projects,activeId,notes});
+  localStorage.setItem(STORE,next);storedText=next;
+  if(previousId!==activeId)render();
+ }catch{notify('浏览器空间不足，本次修改未能保存。请先导出台账。',true);}
+}
 function notify(text,error=false){clearTimeout(toastTimer);toast.dataset.error=String(error);toast.textContent=text;toast.hidden=false;toastTimer=setTimeout(()=>{toast.hidden=true;},error?6400:3700);return toastTimer;}
 const e=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const caseTitle=title=>title;
@@ -95,12 +132,57 @@ function allowed(p,step){return STEPS.findIndex(s=>s[0]===step)<=highest(p)||Boo
 function sidebarMarkup(p){
  const max=highest(p);
  return `<div class="sidebar-inner"><div class="project-select"><label for="project-select">当前项目</label>
+ <button type="button" data-action="delete-project" class="button button-quiet project-delete-trigger" aria-label="删除当前项目">删除项目</button>
  <select id="project-select">${projects.map(item=>`<option value="${e(item.id)}"${p.id===item.id?' selected':''}>${e(caseTitle(item.title))}</option>`).join('')}</select></div>
  <nav class="sidebar-nav" aria-label="项目步骤">${STEPS.map(([key,label],index)=>{
   const complete=index<max&&(index<4||p.archivedVersions.length), active=page===key, enabled=allowed(p,key);
   return `<button type="button" class="stage-link${active?' active':''}${enabled?'':' locked'}" data-action="step" data-step="${key}" ${active?'aria-current="step"':''} ${enabled?'':'disabled'}><span class="stage-circle${complete?' done':''}" aria-hidden="true">${complete?'✓':index+1}</span><span>${label}</span></button>`;
  }).join('')}</nav>
- <p class="sidebar-note">${remote?'已提交的版本保存在项目库。':'项目仅保存在此浏览器。'}</p></div>`;
+ <div class="sidebar-data"><button type="button" class="database-link" data-action="project-database" aria-haspopup="dialog">本地项目库</button><span>${remote?'SQLite':'浏览器存储'}</span></div></div>`;
+}
+function sqliteWorkbenchUrl() {
+ const url=new URL('http://127.0.0.1:4873/design-agent');
+ url.searchParams.set('view','database');
+ return url.href;
+}
+function canSaveDatabaseDraft(p) {
+ return !p.remoteOnly && p.serverRevision==null && !p.requirements && !p.solution &&
+   Boolean(p.title?.trim() && (p.text?.trim() || p.title!=='未命名定制项目'));
+}
+async function showProjectDatabase(){
+ const p=current();
+ const dialog=showPhotoDialog('本地项目库','<div class="db-body" aria-live="polite">正在读取存储位置…</div>');
+ dialog.classList.add('project-database-dialog');
+ const body=dialog.querySelector('.db-body');
+ await catalogReady;
+ if(!dialog.isConnected)return;
+ if(catalogError){
+   body.innerHTML='<p>工作台未能读取存储位置。请检查连接后重试。</p><div class="actions"><a class="button button-light" href="'+e(BASE+'?view=database')+'">重新连接</a></div>';
+   return;
+ }
+ if(!remote){
+   const local=sqliteWorkbenchUrl();
+   body.innerHTML='<p>当前项目保存在这个浏览器。要把需求写入本机 SQLite，请打开本机工作台。</p>'+
+     '<div class="actions"><a class="button button-dark" rel="noopener" target="_blank" href="'+e(local)+'">打开本机工作台</a>'+
+     '<a class="button button-light" target="_blank" rel="noopener" href="https://github.com/reymondmeking-dot/shangfu-design-agent#运行工作台">本机启动说明</a></div>'+
+     '<p class="help">本机服务地址 <code>127.0.0.1:4873</code></p>';
+   return;
+ }
+ try{
+   const index=await request('/projects');
+   if(!dialog.isConnected)return;
+   const linked=index.projects.some(item=>item.id===p.id);
+   const listUrl=BASE+'/api/projects';
+   body.innerHTML='<p><strong>已连接 SQLite</strong>　'+index.projects.length+' 个项目</p>'+
+      '<dl class="db-facts"><div><dt>当前项目</dt><dd>'+e(caseTitle(p.title))+'</dd></div>'+
+      '<div><dt>保存位置</dt><dd>'+(linked?'项目库':'浏览器草稿')+'</dd></div></dl>'+
+      '<div class="actions">'+(canSaveDatabaseDraft(p)&&!linked?btn('保存当前草稿','save-database-draft','button-dark','data-id="'+e(p.id)+'"'):'')+
+      '<a class="button button-light" href="'+listUrl+'" target="_blank" rel="noopener">项目列表（JSON）</a>'+
+      (linked?'<a class="button button-light" href="'+listUrl+'/'+encodeURIComponent(p.id)+'" target="_blank" rel="noopener">当前项目（JSON）</a>':'')+
+      '<a class="button button-quiet" href="'+BASE+'/api/health" target="_blank" rel="noopener">查看连接状态</a></div>';
+ }catch{
+   if(dialog.isConnected)body.innerHTML='<p>本机项目库没有响应。请检查服务后重新打开。</p>';
+ }
 }
 function deliverableLink(text,url,name,css='button-light') {
  const version=document.querySelector('script[src*="/assets/ui.js"]')?.src.split('?')[1] || 'v=20261125.12';
@@ -312,6 +394,7 @@ async function savedPhotos(id,images){
  });
 }
 async function keepPhotos(id,entry){
+ if(!projects.some(p=>!wasDeleted(p.id)&&solutionIds(p).has(id)))return;
  try{await savedPhotos(id,entry.images);entry.storageWarning='';}
  catch{entry.storageWarning='图片暂存在本页。关闭前请下载 JPG。';}
 }
@@ -484,6 +567,108 @@ function showPhotoDialog(title,content){
  return dialog;
 }
 function closePhotoDialog(dialog){if(typeof dialog?.close==='function')dialog.close();else dialog?.remove();}
+function solutionIds(p){
+ return new Set([p.solution?.id,p.currentRevision?.solution?.id,...(p.history||[]).map(rev=>rev.solution?.id)].filter(Boolean));
+}
+async function clearDeletedPhotos(p){
+ const ids=solutionIds(p);
+ for(const other of projects)for(const id of solutionIds(other))ids.delete(id);
+ for(const id of ids){
+  photoSets.get(id)?.controller?.abort();photoSets.delete(id);previews.delete(id);deliveryMessages.delete(id);
+ }
+ if(!ids.size||!window.indexedDB)return;
+ const db=await photoDb();
+ await new Promise((resolve,reject)=>{
+  const tx=db.transaction('versions','readwrite'),store=tx.objectStore('versions');
+  for(const id of ids)store.delete(id);
+  tx.oncomplete=resolve;
+  tx.onerror=tx.onabort=()=>reject(tx.error||new Error('本机图片缓存未能清除。'));
+ });
+}
+async function discardProject(p){
+ localStorage.setItem(deletedPrefix+p.id,'1');
+ projects=projects.filter(item=>item.id!==p.id);
+ notes=notes.filter(note=>note.projectId!==p.id&&note.id!==p.caseNote?.id);
+ persist();
+ try{await clearDeletedPhotos(p);}finally{
+  if(remote&&current().remoteOnly)await loadRemoteProject(current());
+  const next=current();
+  if(page!=='catalog')page=allowed(next,next.status)?next.status:'intake';
+  persist();render();
+  document.getElementById('project-select')?.focus();
+  window.dispatchEvent(new CustomEvent('design-project-deleted',{detail:{projectId:p.id}}));
+ }
+}
+function savedProjectStamp(id){
+ const state=JSON.parse(localStorage.getItem(STORE))||{};
+ return JSON.stringify(state.projects?.find(item=>item.id===id)||null);
+}
+function askToDelete(p,revision){
+ if(current().id!==p.id||wasDeleted(p.id))return;
+ const other=projects.some(item=>item.id!==p.id&&item.title===p.title);
+ const title=caseTitle(p.title)||'未命名定制项目';
+ const initial=revision===null?savedProjectStamp(p.id):null;
+ const dlg=document.createElement('dialog');
+ dlg.className='photo-dialog project-delete-dialog';dlg.setAttribute('aria-labelledby','delete-project-heading');
+ dlg.innerHTML='<h2 id="delete-project-heading">删除“'+e(title)+'”？</h2>'+
+  (other?'<p class="help">项目编号　'+e(p.id)+'</p>':'')+
+  '<p>删除后，'+(revision===null?'此浏览器':'本地项目库')+'中将不再显示这份项目。已被其他项目引用的检查项会保留。</p>'+
+  '<div class="actions"><button type="button" class="button button-light" autofocus data-cancel>取消</button>'+
+  '<button type="button" class="button button-light button-danger" data-confirm>删除项目</button></div>';
+ document.body.append(dlg);
+ const cancel=()=>{closePhotoDialog(dlg);document.querySelector('[data-action="delete-project"]')?.focus();};
+ dlg.addEventListener('close',()=>dlg.remove(),{once:true});
+ dlg.addEventListener('cancel',evt=>{evt.preventDefault();cancel();});
+ dlg.addEventListener('keydown',evt=>{if(evt.key==='Escape'){evt.preventDefault();cancel();}});
+ dlg.querySelector('[data-cancel]').onclick=cancel;
+ dlg.querySelector('[data-confirm]').onclick=()=>{
+  closePhotoDialog(dlg);
+  if(current().id!==p.id||wasDeleted(p.id))return;
+  return run(async()=>{
+   if(revision===null&&savedProjectStamp(p.id)!==initial){
+    persist();render();throw new Error('另一页刚修改了这个项目。请核对最新内容，再决定是否删除。');
+   }
+   if(revision!==null){
+    const route=BASE+'/api/projects/'+encodeURIComponent(p.id)+'?expectedRevision='+revision;
+    const response=await fetch(route,{method:'DELETE',headers:{accept:'application/json'}});
+    const result=await response.json().catch(()=>({}));
+    if(response.status===409){
+     await loadRemoteProject(p);persist();setPage(allowed(p,p.status)?p.status:'intake');
+     throw new Error('项目刚有更新。请核对最新内容，再决定是否删除。');
+    }
+    if(!(response.status===404&&result.code==='PROJECT_NOT_FOUND')&&
+       (!response.ok||result.id!==p.id||result.deleted!==true))throw new Error(result.error||'项目未能删除，请稍后重试。');
+   }
+   await discardProject(p);notify('项目已删除。');
+  },'正在删除项目…');
+ };
+ if(typeof dlg.showModal==='function')dlg.showModal();else dlg.setAttribute('open','');
+ dlg.querySelector('[data-cancel]').focus();
+}
+async function prepareDelete(p){
+ await catalogReady;
+ if(catalogError)throw new Error('请先重新加载工作台，核对项目的保存位置。');
+ let revision=null;
+ if(remote){
+  if(p.remoteOnly||p.serverRevision==null||p.lastAttempt){
+   try{await loadRemoteProject(p);}catch(error){if(error.status!==404||error.code!=='PROJECT_NOT_FOUND')throw error;}
+  }
+  if(Number.isInteger(p.serverRevision))revision=p.serverRevision;
+ }else if(p.remoteOnly||p.serverRevision!=null){
+  throw new Error('这份项目保存在本地项目库。请从本地工作台打开后删除。');
+ }
+ askToDelete(p,revision);
+}
+window.addEventListener('storage',evt=>{
+ if(evt.key!==STORE||!evt.newValue)return;
+ const removed=projects.filter(p=>wasDeleted(p.id));if(!removed.length)return;
+ const changed=removed.some(p=>p.id===activeId);
+ if(changed)document.querySelectorAll('.photo-dialog').forEach(closePhotoDialog);
+ persist();
+ for(const p of removed)clearDeletedPhotos(p).catch(()=>{});
+ render();
+ if(changed&&remote&&current().remoteOnly)run(async()=>{await loadRemoteProject(current());render();},'正在读取项目…');
+});
 function previewPanel(rev){
  const entry=previews.get(rev.solution.id);
  const heading=`<div class="panel-header"><h2>款式结构示意</h2><span class="chip">V${e(rev.version)}</span></div>`;
@@ -630,13 +815,23 @@ async function loadCatalog(){
 }
 async function loadRemoteList(){
  const [index,approved]=await Promise.all([request('/projects'),request('/notes')]);
+ const liveIds=new Set(index.projects.map(item=>item.id));
+ // An older or different SQLite file can lack a project without having deleted it.
+ const deletedIds=new Set(index.deletedProjectIds||[]);
+ const missing=projects.filter(p=>Number.isInteger(p.serverRevision)&&deletedIds.has(p.id));
+ for(const p of missing){
+  localStorage.setItem(deletedPrefix+p.id,'1');
+ }
  for(const item of index.projects){
+  if(wasDeleted(item.id))continue;
   const local=projects.find(row=>row.id===item.id);
   if(!local)projects.push({...newProject(item),id:item.id,remoteOnly:true,serverRevision:item.revision});
   else if((local.serverRevision??0)<item.revision)local.remoteOnly=true;
  }
  for(const item of approved.notes){if(!notes.some(n=>n.id===item.id))notes.push(item);}
- if(current().remoteOnly)await loadRemoteProject(current());
+ persist();
+ for(const p of missing)await clearDeletedPhotos(p);
+ if(current().remoteOnly&&liveIds.has(current().id))await loadRemoteProject(current());
  persist();
 }
 async function loadRemoteProject(p){
@@ -654,6 +849,7 @@ async function loadRemoteProject(p){
 async function stageRequest(p,path,data){
  if(catalogReady)await catalogReady;
  if(catalogError)throw new Error('请刷新工作台，再打开资产库。');
+ if(wasDeleted(p.id))throw new Error('这份项目已被删除。');
  if(!remote)return request(path,data);
  const semantic={...data};delete semantic.requirementId;delete semantic.matchId;delete semantic.reviewId;delete semantic.noteId;
  const fingerprint=JSON.stringify([path,p.serverRevision??0,semantic]);
@@ -915,6 +1111,15 @@ document.addEventListener('click',eventObject=>{
  const button=eventObject.target.closest('button[data-action]');
  if(!button||busy)return;
  const action=button.dataset.action,p=current();
+ if(action==='project-database')return showProjectDatabase();
+ if(action==='save-database-draft'&&remote&&p.id===button.dataset.id&&canSaveDatabaseDraft(p)){
+  return run(async()=>{
+   const dialog=button.closest('dialog');
+   await stageRequest(p,'/projects',{title:p.title,scene:p.scene,rawText:p.text||'',...(p.reused?.id?{reuseNoteId:p.reused.id}:{})});
+   persist();await loadRemoteProject(p);persist();render();
+   closePhotoDialog(dialog);await showProjectDatabase();notify('草稿已存入本机项目库。');
+  },'正在保存草稿…');
+ }
  if(action==='close-photo')return closePhotoDialog(button.closest('dialog'));
  if(action==='sample-photos'){
   const scene=button.dataset.caseScene,ver=Number(button.dataset.caseVersion);
@@ -927,6 +1132,7 @@ document.addEventListener('click',eventObject=>{
  if(action==='step')return setPage(button.dataset.step);
  if(action==='workspace')return setPage(allowed(p,p.status)?p.status:'intake');
  if(action==='catalog')return setPage('catalog');
+ if(action==='delete-project')return run(()=>prepareDelete(p),'正在核对当前项目…');
  if(action==='new-project')return appendProject(newProject());
  if(action==='rebuild-cloud'&&remote&&!p.serverRevision)return appendProject(newProject({title:p.title,scene:p.scene,text:p.text}));
  if(action==='retry-catalog')return run(loadCatalog,'正在读取资产…');
@@ -1054,3 +1260,4 @@ if(logo&&logoFallback){
  else logo.addEventListener('load',showLogo,{once:true});
 }
 render();catalogReady=loadCatalog();
+if(new URLSearchParams(window.location.search).get('view')==='database')void showProjectDatabase();

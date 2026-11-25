@@ -42,10 +42,12 @@ class ProjectStages(unittest.TestCase):
         self.server.terminate()
         self.server.wait(timeout=15)
 
-    def http(self,path,data=None):
-        req=Request('http://127.0.0.1:'+str(self.port)+path,method='GET' if data is None else 'POST',
-            data=None if data is None else json.dumps(data,ensure_ascii=False).encode(),
-            headers={'Authorization':'Bearer service-test','Content-Type':'application/json'})
+    def http(self,path,data=None,*,method=None,base=None,origin=None):
+        headers={'Authorization':'Bearer service-test','Content-Type':'application/json'}
+        if origin is not None:headers['Origin']=origin
+        url=(base or 'http://127.0.0.1:'+str(self.port))+path
+        req=Request(url,method=method or ('GET' if data is None else 'POST'),
+            data=None if data is None else json.dumps(data,ensure_ascii=False).encode(),headers=headers)
         try:
             with self.client.open(req,timeout=30) as response:return response.status,json.load(response)
         except HTTPError as exc:return exc.code,json.load(exc)
@@ -111,6 +113,85 @@ class ProjectStages(unittest.TestCase):
         self.assertIsNone(follow['solution'])
         self.ok('/v1/extract',{'projectId':'project-b','scene':'group','text':'接待团队外套，必须可机洗。'})
         self.assertEqual(self.ok('/v1/projects/project-b')['reused']['id'],'NOTE-1')
+
+        revision=str(snapshot['revision'])
+        url='/v1/projects/project-a?expectedRevision='+revision
+        self.assertEqual(self.http(url,method='DELETE',origin='https://foreign.example')[0],403)
+        self.assertEqual(self.http('/v1/projects/project-a?expectedRevision=0',method='DELETE')[0],409)
+        self.assertEqual(self.http('/v1/projects/project-a',method='DELETE')[0],422)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            attempts=list(pool.map(lambda _:self.http(url,method='DELETE'),range(2)))
+        self.assertEqual(attempts,[(200,{'id':'project-a','deleted':True})]*2)
+        self.stop()
+        self.start()
+        self.assertEqual(self.http(url,method='DELETE'),attempts[0])
+        self.assertEqual(self.http('/v1/projects/missing?expectedRevision=1',method='DELETE')[0],404)
+        self.assertEqual(self.http('/v1/projects/project-a')[0],404)
+        self.assertEqual(self.http('/v1/projects/project-a/visual-images/SOL-PY-2')[0],404)
+        self.assertEqual(self.http('/v1/extract',raw)[0],404,'a saved request receipt must not revive a deleted project')
+        self.assertEqual(self.ok('/v1/notes')['notes'],[])
+        self.assertEqual(self.ok('/v1/projects/project-b')['reused']['checklist'],['比对补货样卡'])
+        self.assertEqual(self.http('/v1/projects',{'projectId':'project-c','scene':'group','reuseNoteId':'NOTE-1'})[1]['code'],'REUSE_NOT_APPROVED')
+        project_list=self.ok('/v1/projects')
+        self.assertEqual([p['id'] for p in project_list['projects']],['project-b'])
+        self.assertEqual(project_list['deletedProjectIds'],['project-a'])
+
+    def test_save_draft_before_extracting(self):
+        path='/v1/projects'
+        raw='  顾客说：“领口低一点”。\n  肩部想宽松。\t'
+        title='  礼宾夹克 初稿  '
+        args={'projectId':'draft-a','title':title,'rawText':raw,'scene':'group','expectedRevision':0,'requestId':'save'}
+        saved=self.ok(path,args)
+        self.assertEqual(saved['workflow']['phase'],'intake')
+        self.assertEqual(saved['workflow']['intakeId'],saved['intake']['id'])
+        self.assertEqual(saved['intake']['actor'],'定制顾问')
+        self.assertEqual(self.ok(path,args),saved)
+        self.assertEqual(self.http(path,{**args,'rawText':'不同的原话'})[1]['code'],'REQUEST_ID_CONFLICT')
+        self.stop()
+        self.start()
+        record=self.ok(path+'/draft-a')
+        self.assertEqual((record['title'],record['text'],record['intakes'],record['requirements'],record['solution']),
+                         (title,raw,[saved['intake']],None,None))
+        self.assertEqual(self.ok(path)['projects'][0]['phase'],'intake')
+        result=self.ok('/v1/extract',{'projectId':'draft-a','text':raw,'scene':'group','expectedRevision':1})
+        self.assertEqual(result['workflow']['intakeId'],saved['intake']['id'])
+        self.assertEqual(result['sourceText'],raw)
+        self.assertEqual(self.ok(path+'/draft-a')['title'],title)
+        self.assertEqual(len(self.ok(path+'/draft-a')['intakes']),1)
+        self.assertEqual(self.ok('/v1/extract',{'projectId':'draft-a','text':raw+'修改','scene':'group','expectedRevision':2})['workflow']['phase'],'extracted')
+        self.assertEqual(len(self.ok(path+'/draft-a')['intakes']),2)
+        self.assertEqual(self.ok(path,{'projectId':'empty-draft','rawText':''})['workflow']['intakeId'],None)
+        self.assertEqual(self.http(path,{'projectId':'oversized','rawText':'字'*4201})[0],422)
+
+    def test_delete_through_workbench_api(self):
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1',0))
+            port=sock.getsockname()[1]
+        origin='http://127.0.0.1:'+str(port)
+        proxy=subprocess.Popen(['node','src/local.mjs'],cwd=ROOT,env={
+            **self.env,'SHANGFU_ORIGIN':'http://127.0.0.1:'+str(self.port),'PORT':str(port),'HOST':'127.0.0.1',
+            'REQUIRE_PASSWORD':'0','SHANGFU_REMOTE_IMAGES':'0',
+        },stdout=subprocess.DEVNULL)
+        try:
+            for _ in range(100):
+                try:
+                    if self.http('/design-agent/api/health',base=origin)[0]==200:break
+                except OSError:time.sleep(.05)
+            else:self.fail('Workbench did not start')
+            path='/design-agent/api/projects'
+            pid='delete-proxy-test'
+            self.assertEqual(self.http(path,{'projectId':pid},base=origin,origin=origin)[0],200)
+            record=self.http(path+'/'+pid,base=origin)[1]
+            target=path+'/'+pid+'?expectedRevision='+str(record['revision'])
+            for bad in [None,'https://foreign.example']:
+                self.assertEqual(self.http(target,method='DELETE',base=origin,origin=bad)[0],403)
+            self.assertEqual(self.http(path+'/'+pid+'?expectedRevision=0',method='DELETE',base=origin,origin=origin)[0],409)
+            self.assertEqual(self.http(path+'/'+pid+'?expectedRevision=invalid',method='DELETE',base=origin,origin=origin)[0],422)
+            self.assertEqual(self.http(target,method='DELETE',base=origin,origin=origin),(200,{'id':pid,'deleted':True}))
+            self.assertEqual(self.http(path+'/'+pid,base=origin)[0],404)
+        finally:
+            proxy.terminate()
+            proxy.wait(timeout=15)
 
     def test_structured_ollama_protocol_and_evidence(self):
         received=[]
