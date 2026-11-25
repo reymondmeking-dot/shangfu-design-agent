@@ -6,7 +6,9 @@
 
 [观看 45 秒操作演示](https://planto-ai.com/design/video) ｜ [在线演示](https://planto-ai.com/design) ｜ [在线项目简介](https://planto-ai.com/design/overview) ｜ [技术路线、业务边界与接口](docs/architecture.md)
 
-一张 40 人酒店礼宾服模拟订单贯穿全片。依次录入原话、核对机洗要求、选择藏蓝斜纹、查看成衣与袋口，再把门襟从 30 mm 改到 35 mm。最后打开五表台账，将获批的试穿检查带入下一单。普通话旁白采用小米 MiMo TTS 的白桦男声，配有背景音乐和中英字幕。[下载最新版 1080p MP4](https://github.com/reymondmeking-dot/shangfu-design-agent/releases/latest/download/shangfu-design-agent-demo.mp4)
+一张 40 人酒店礼宾服模拟订单贯穿全片。依次录入原话、核对机洗要求、选择藏蓝斜纹、查看成衣与袋口，再把门襟从 30 mm 改到 35 mm。最后打开五表台账，将获批的试穿检查带入下一单。普通话旁白采用小米 MiMo TTS 的白桦男声，配乐为原创钢琴独奏《窗边的样衣》，附中英字幕。[下载最新版 1080p MP4](https://github.com/reymondmeking-dot/shangfu-design-agent/releases/latest/download/shangfu-design-agent-demo.mp4)
+
+钢琴音源为 Alexander Holm 录制、kinwie 整理的 Yamaha C5 采样。本片使用这些采样演奏、移调并混响。[Salamander Grand Piano v3](https://sfzinstruments.github.io/pianos/salamander/) ｜ [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/)
 
 ## 运行工作台
 

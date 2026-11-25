@@ -8,7 +8,7 @@ const repo = 'https://github.com/reymondmeking-dot/shangfu-design-agent';
 const releaseVideo = repo + '/releases/latest/download/shangfu-design-agent-demo.mp4';
 const videoPath = base + '/media/shangfu-design-agent-demo.mp4';
 // Refresh these values together with the public MP4 so viewers get its new cache key.
-const videoRelease = { bytes:16009380, revision:'5f3d4cdbeb11' };
+const videoRelease = { bytes:16171097, revision:'d1b92cd668e1' };
 const videoUrl = videoPath + '?v=' + videoRelease.revision;
 const csp = "default-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'none'; style-src 'self'; img-src 'self'; media-src 'self' https://github.com https://release-assets.githubusercontent.com https://objects.githubusercontent.com";
 const steps = ['需求录入','需求解构','人工确认','资源匹配','方案初稿','图纸与提示词','版师复核','归档导出','复盘复用'];
@@ -233,11 +233,12 @@ function video(url) {
   const selected=chapters.find(c=>c.id===url.searchParams.get('chapter'));
   const offset=selected?'#t='+selected.time:'';
   return headings('演示视频','观看礼宾夹克从需求录入到归档复用的过程。',base+'/video',`
-<section class="page-head"><span class="eyebrow">操作演示</span><h1>酒店礼宾服订单演示</h1><p>45 秒，小米 MiMo 白桦男声讲解，配有背景音乐和中英字幕。</p></section>
+<section class="page-head"><span class="eyebrow">操作演示</span><h1>酒店礼宾服订单演示</h1><p>45 秒。小米 MiMo 白桦男声，钢琴独奏，中英字幕。</p></section>
 <section class="film" id="player" aria-label="作品演示播放器"><video controls playsinline preload="metadata" poster="${illustration('video-cover.jpg')}" aria-label="海派定制顾问项目演示">
 <source src="${videoUrl}${offset}" type="video/mp4"><source src="${releaseVideo}${offset}" type="video/mp4"><a href="${releaseVideo}">下载 MP4 演示视频</a></video>
 <nav class="film-links" aria-label="视频章节">${chapters.map(c=>`<a href="/design/video?chapter=${c.id}#player"${selected===c?' aria-current="true"':''}>${c.clock}　${c.label}</a>`).join('')}</nav>
-<div class="film-links"><a href="${videoUrl}" download>下载 MP4</a><a href="${releaseVideo}">GitHub 备用下载</a><a href="/design#case">查看模拟订单 →</a></div></section>`);
+<div class="film-links"><a href="${videoUrl}" download>下载 MP4</a><a href="${releaseVideo}">GitHub 备用下载</a><a href="/design#case">查看模拟订单 →</a></div>
+<details class="fine"><summary>配乐署名</summary><p>《窗边的样衣》为本片原创钢琴曲。钢琴音源采用 Alexander Holm 录制的 Yamaha C5，kinwie 整理。演奏时对采样作了移调与混响处理。</p><p><a href="https://sfzinstruments.github.io/pianos/salamander/">Salamander Grand Piano v3</a>　<a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a></p></details></section>`);
 }
 
 function exportExample(key,version,format,followup) {
