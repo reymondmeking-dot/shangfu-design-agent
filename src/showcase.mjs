@@ -29,7 +29,7 @@ const cases = {
 // Only these prepared, synthetic examples and presentation illustrations are public.
 // Nothing in this map routes to the authenticated workspace or its source archives.
 const assets = new Map([
-  ['site.css','/showcase/site.css'],['radix.css','/assets/radix.css'],
+  ['site.css','/showcase/site.css'],['video-cover.jpg','/showcase/video-cover.jpg'],['radix.css','/assets/radix.css'],
   ['jacquard.webp','/assets/swatch-jacquard.webp'],
   ['twill.webp','/assets/swatch-twill.webp'],['concierge-garment.jpg','/assets/photo-group-v1-garment.jpg'],
   ['concierge-detail.jpg','/assets/photo-group-v1-detail.jpg'],['concierge-on-body.jpg','/assets/photo-group-v1-on-body.jpg'],
@@ -178,7 +178,7 @@ function video(url) {
   const offset=selected?'#t='+selected.time:'';
   return headings('演示视频','观看海派定制顾问的完整模拟订单流程。',base+'/video',`
 <section class="page-head"><span class="eyebrow">演示视频</span><h1>从需求录入到归档复用</h1><p>1 分 44 秒，小米 MiMo 普通话配音，中英字幕。</p></section>
-<section class="film" id="player" aria-label="作品演示播放器"><video controls playsinline preload="metadata" poster="${illustration('concierge-garment.jpg')}" aria-label="海派定制顾问项目演示">
+<section class="film" id="player" aria-label="作品演示播放器"><video controls playsinline preload="metadata" poster="${illustration('video-cover.jpg')}" aria-label="海派定制顾问项目演示">
 <source src="${videoPath}${offset}" type="video/mp4"><source src="${releaseVideo}${offset}" type="video/mp4"><a href="${releaseVideo}">下载 MP4 演示视频</a></video>
 <nav class="film-links" aria-label="视频章节">${chapters.map(c=>`<a href="/design/video?chapter=${c.id}#player"${selected===c?' aria-current="true"':''}>${c.clock}　${c.label}</a>`).join('')}</nav>
 <div class="film-links"><a href="${videoPath}" download>下载 MP4</a><a href="${releaseVideo}">GitHub 备用下载</a><a href="/design#case">体验模拟案例 →</a></div></section>`);
