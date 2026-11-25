@@ -6,7 +6,7 @@
 
 [观看 1 分 44 秒演示](https://planto-ai.com/design/video) ｜ [在线演示](https://planto-ai.com/design) ｜ [在线项目简介](https://planto-ai.com/design/overview) ｜ [技术路线、业务边界与接口](docs/architecture.md)
 
-影片使用小米 MiMo TTS 普通话配音和中英字幕。片中使用两张模拟订单演示交领改低立领、门襟从 30 mm 改到 35 mm，以及获批的试穿检查进入下一单。[下载 1080p MP4](https://github.com/reymondmeking-dot/shangfu-design-agent/releases/download/v1.0.0/shangfu-design-agent-demo.mp4)
+影片使用小米 MiMo TTS 普通话配音和中英字幕。片中使用两张模拟订单演示交领改低立领、门襟从 30 mm 改到 35 mm，以及获批的试穿检查进入下一单。[下载最新版 1080p MP4](https://github.com/reymondmeking-dot/shangfu-design-agent/releases/latest/download/shangfu-design-agent-demo.mp4)
 
 ## 运行工作台
 
@@ -35,10 +35,12 @@ macOS 或 Linux 中运行以下命令。
 
 ## 在演示中观察什么
 
+启动服务后，打开 `/design` 可以逐步查看两张模拟订单并下载同版档案。`/design-agent` 是可录入新需求的业务工作台。`/design/video` 提供带章节的配音影片，使用 GitHub Release 保存的 MP4。
+
 | 模拟项目 | 可以核对的结果 |
 | --- | --- |
-| 澄溪画廊开幕酒会 | 客户要求低立领和举手介绍作品。解构后核对原话出处、样布和试穿事项，查看同版 SVG、DXF 及三种视觉提示词。 |
-| 云汀会馆礼宾夹克 | 24 名礼宾员要求统一深藏蓝、可机洗并方便搬运行李。核对推荐面料和双嵌线袋口，打开已核对的成衣、细节和上身三张模拟图。 |
+| 澄溪画廊开幕酒会 | 首版采用交领和无扣开襟。若客户改要低立领，由顾问重新确认，更新版型及同版 SVG、DXF 和三种视觉提示词。 |
+| 云汀会馆礼宾夹克 | 40 名礼宾员要求统一深藏蓝、可机洗并方便搬运行李。核对推荐面料和双嵌线袋口，打开已核对的成衣、细节和上身三张模拟图。 |
 
 从礼宾案例载入原话，确认字段并生成 V1。可以让版师退回门襟，改为 35 mm 后重出 V2，核对新图纸，对 V2 签署复核意见，归档并导出可编辑台账。再批准一条试穿检查项，新建项目时选择复用。上一单的检查项和来源可追溯，新客户另行录入需求与量体。
 

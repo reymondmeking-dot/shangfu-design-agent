@@ -14,6 +14,7 @@ const { archivePhotos, generatePhoto, getPhotoSet } = photoApi;
 import { interpretText, modelReady } from './inference.mjs';
 import { accessGuard } from './auth.mjs';
 
+import { showcase } from './showcase.mjs';
 const root = '/design-agent';
 const revision = '20261125.12';
 const responseHeaders = {
@@ -327,6 +328,8 @@ async function asset(request, env, path, entry) {
 }
 
 export async function handle(request, env) {
+  const publicPage = await showcase(request, env);
+  if (publicPage) return publicPage;
   const locked = await accessGuard(request, env);
   if (locked) return locked;
   const { pathname, origin } = new URL(request.url);
